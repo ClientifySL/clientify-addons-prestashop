@@ -1,1 +1,1 @@
-# Clientify Prestashop
+# clientify-addons-prestashop
