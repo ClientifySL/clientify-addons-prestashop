@@ -62,8 +62,17 @@ class AdminClientifyController extends ModuleAdminController
         $get_data = "SELECT * FROM "._DB_PREFIX_."configuration_clientify";
         $results = Db::getInstance()->executeS($get_data);
         $base_url = $endpoint_class->GetApiUrl($results[0]['id_shop']);//$shop->getBaseURL();
-        $ajax = $base_url . 'modules/' . $module->name . '/ajax.php?token=' . Tools::encrypt($module->name . '/ajax.php');
-        $shop_name = shop::getShop($results[0]['id_shop']) ? shop::getShop($results[0]['id_shop'])['name'] : 0;
+         // In PS 8/9, Tools::encrypt does not exist; JS already uses clientifyController for AJAX,
+        // so we don't need to build this legacy URL.
+        $ajax = null;
+        // Get the store name in a PS 8/9 compatible format
+        $shop_name = 0;
+        if (!empty($results[0]['id_shop'])) {
+            $shop_obj = new Shop((int) $results[0]['id_shop']);
+            if ($shop_obj->id) {
+                $shop_name = $shop_obj->name;
+            }
+        }
         $adminController = $this->context->link->getAdminLink('AdminClientify');
 
         $this->context->smarty->assign(array(
@@ -71,7 +80,7 @@ class AdminClientifyController extends ModuleAdminController
             'tab' => $tab,
             'url_base' => $base_url,
             'orderstatus' => $this->getOrdersSatus(),
-            'shops' => shop::getShops(),
+            'shops' => Shop::getShops(),
             'data_config' => $results[0],
             'shop_config' => $shop_name
 
@@ -104,11 +113,14 @@ class AdminClientifyController extends ModuleAdminController
             $key_uid = $endpoint_class->token_id();
             $url_base = $endpoint_class->GetApiUrl($id_shop);
 
+            $shop_obj = new Shop((int) $id_shop);
+            $shop_name = $shop_obj->id ? $shop_obj->name : 'prestashop';
+
             $post_key = array(
                 'ecommerce' => 'prestashop',
                 'action'    => 'connect',
                 'store_key' => $key_uid,
-                'name'      => shop::getShop($id_shop)['name'],
+                'name'      => $shop_name,
                 'store_url' => $url_base
             );
             $response = $api->Post_Base_Clientify($post_key, $key);  
@@ -181,11 +193,14 @@ class AdminClientifyController extends ModuleAdminController
             $key_uid = $results[0]['clientify_store_key'];
 			$url_base = $endpoint_class->GetApiUrl($results[0]['id_shop']);
 
+            $shop_obj = new Shop((int) $results[0]['id_shop']);
+            $shop_name = $shop_obj->id ? $shop_obj->name : 'prestashop';
+
 			$post_key = array(
 				'ecommerce' => 'prestashop',
 				'action'    => 'disconnect',
 				'store_key' => $key_uid,
-				'name'      => shop::getShop($results[0]['id_shop']) ? shop::getShop($results[0]['id_shop'])['name'] : 0,
+				'name'      => $shop_name,
 				'store_url' => $url_base
 			);
 

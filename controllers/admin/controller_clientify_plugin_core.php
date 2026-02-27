@@ -14,6 +14,20 @@ class AdminCustomClientifyEndPoint
 		$this->data_config = $this->getIdShopConfigClientify(); // obtención del valor de la consulta SQL y asignación a la variable
 	}
 
+	/**
+	 * Obtains the store name in a manner compatible with PrestaShop 1.7/8/9.
+	 */
+	private function getShopName($idShop)
+	{
+		if (empty($idShop)) {
+			return 'prestashop';
+		}
+
+		$shop = new Shop((int) $idShop);
+
+		return $shop->id ? $shop->name : 'prestashop';
+	}
+
 	private function getIdShopConfigClientify()
 	{
 		$results_global = Db::getInstance()->executeS("SELECT * FROM " . _DB_PREFIX_ . "configuration_clientify");
@@ -72,7 +86,7 @@ class AdminCustomClientifyEndPoint
 				'ecommerce' => 'prestashop',
 				'action' => 'connect',
 				'store_key' => $key_uid,
-				'name' => shop::getShop($this->data_config['id_shop'])['name'],
+				'name' => $this->getShopName($this->data_config['id_shop']),
 				'store_url' => $url_base
 			);
 
@@ -96,7 +110,7 @@ class AdminCustomClientifyEndPoint
 				'ecommerce' => 'prestashop',
 				'action' => 'disconnect',
 				'store_key' => $data_config[0]['clientify_store_key'],
-				'name' => shop::getShop($this->data_config['id_shop'])['name'],
+				'name' => $this->getShopName($this->data_config['id_shop']),
 				'store_url' => $url_base
 			);
 
@@ -119,7 +133,7 @@ class AdminCustomClientifyEndPoint
 	{
 		$context = Context::getContext();
 		$user = new Customer((int) $user_id);
-		$site_name = shop::getShop($this->data_config['id_shop'])['name'];
+		$site_name = $this->getShopName($this->data_config['id_shop']);
 		$site_name = empty($site_name) ? 'prestashop' : $site_name;
 		$lang = $context->language->iso_code;
 		$address = new Address(Address::getFirstCustomerAddressId($user_id));
@@ -357,7 +371,7 @@ class AdminCustomClientifyEndPoint
 			'order_date' => date_format($date_format_clientify, 'Y-m-d H:i:s'),
 			'order_id' => $order->id,
 			'ecommerce' => 'prestashop',
-			'shop_name' => shop::getShop($this->data_config['id_shop'])['name'],
+			'shop_name' => $this->getShopName($this->data_config['id_shop']),
 			'order_url' => $shop_url . "/index.php?controller=pdf-invoice?id_order=$order_id",
 			'store_url' => $url_base,
 			'currency' => $currency['iso_code'],
@@ -732,7 +746,7 @@ class AdminCustomClientifyEndPoint
 				'cart_id' => $cart[0]['id_cart'],
 				'order_id' => $cart[0]['id_cart'],
 				'ecommerce' => 'prestashop',
-				'shop_name' => shop::getShop($this->data_config['id_shop'])['name'],
+			'shop_name' => $this->getShopName($this->data_config['id_shop']),
 				'order_url' => $url_shop . '/index.php?controller=order&recover_cart=' . $cart[0]['id_cart'],
 				'store_url' => $url_base,
 				'currency' => $currency['iso_code'],
@@ -935,7 +949,7 @@ class AdminCustomClientifyEndPoint
 				'order_date' => date_format($date_format_clientify, 'Y-m-d H:i:s'),
 				'order_id' => $order->id,
 				'ecommerce' => 'prestashop',
-				'shop_name' => shop::getShop($this->data_config['id_shop'])['name'],
+				'shop_name' => $this->getShopName($this->data_config['id_shop']),
 				'order_url' => $url_2 . "index.php?controller=pdf-invoice?id_order=" . $order_id['id_order'],
 				'store_url' => $url_base,
 				'currency' => $currency['iso_code'],
@@ -985,7 +999,7 @@ class AdminCustomClientifyEndPoint
 			$user_id = $contact['id_customer'];
 			$context = Context::getContext();
 			$user = new Customer((int) $user_id);
-			$site_name = shop::getShop($this->data_config['id_shop'])['name'];
+			$site_name = $this->getShopName($this->data_config['id_shop']);
 			$site_name = empty($site_name) ? 'prestashop' : $site_name;
 			$lang = $context->language->iso_code;
 			$address = new Address(Address::getFirstCustomerAddressId($user_id));
@@ -1479,7 +1493,7 @@ class AdminCustomClientifyEndPoint
 				'cart_id' => $cart[0]['id_cart'],
 				'order_id' => $cart[0]['id_cart'],
 				'ecommerce' => 'prestashop',
-				'shop_name' => shop::getShop($this->data_config['id_shop'])['name'],
+				'shop_name' => $this->getShopName($this->data_config['id_shop']),
 				'order_url' => $url_shop . '/index.php?controller=order&recover_cart=' . $cart[0]['id_cart'],
 				'store_url' => $url_base,
 				'currency' => $currency['iso_code'],
@@ -1686,7 +1700,7 @@ class AdminCustomClientifyEndPoint
 				'order_date' => date_format($date_format_clientify, 'Y-m-d H:i:s'),
 				'order_id' => $order->id,
 				'ecommerce' => 'prestashop',
-				'shop_name' => shop::getShop($this->data_config['id_shop'])['name'],
+				'shop_name' => $this->getShopName($this->data_config['id_shop']),
 				'order_url' => $url_2 . "index.php?controller=pdf-invoice?id_order=" . $order_id['id_order'],
 				'store_url' => $url_base,
 				'currency' => $currency['iso_code'],
@@ -1738,7 +1752,7 @@ class AdminCustomClientifyEndPoint
 			$user_id = $contact['id_customer'];
 			$context = Context::getContext();
 			$user = new Customer((int) $user_id);
-			$site_name = shop::getShop($this->data_config['id_shop'])['name'];
+			$site_name = $this->getShopName($this->data_config['id_shop']);
 			$site_name = empty($site_name) ? 'prestashop' : $site_name;
 			$lang = $context->language->iso_code;
 			$address = new Address(Address::getFirstCustomerAddressId($user_id));

@@ -145,7 +145,7 @@
 
 
 	<div class="clientify_sub_version">
-		<p>Clientify E-commerce version 0.1.1</p>
+		<p>Clientify E-commerce version 1.0.0</p>
 	</div>
 </div>
 

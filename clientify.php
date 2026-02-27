@@ -67,7 +67,7 @@ class Clientify extends Module
     {
         $this->name = 'clientify';
         $this->tab = 'administration';
-        $this->version = '0.1.1';
+        $this->version = '1.0.0';
         $this->author = 'Clientify SL';
         $this->need_instance = 1;
 
@@ -83,7 +83,8 @@ class Clientify extends Module
 
         $this->confirmUninstall = $this->l('Are you sure you want to uninstall clientify module?');
 
-        $this->ps_versions_compliancy = array('min' => '1.7', 'max' => _PS_VERSION_);
+        // Compatible PrestaShop 1.7, 8 y 9
+        $this->ps_versions_compliancy = array('min' => '1.7.0.0', 'max' => '9.9.9');
     }
 
     /**
