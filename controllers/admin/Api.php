@@ -6,12 +6,12 @@ if (!class_exists('ClientifyApi')) {
     {
         var $api_key;
 
-        var $api_url = 'https://ecommerce.ngrok.io/ecommerce/v2/';
+        var $api_url = 'https://ecommerce-aly.ngrok.io/ecommerce/v2/';
         //var $api_url = 'https://api.clientify.com/ecommerce/v2/';
 
         public function __construct()
         {
-            $results_global = Db::getInstance()->executeS("SELECT * FROM "._DB_PREFIX_."configuration_clientify");           
+            $results_global = Db::getInstance()->executeS("SELECT * FROM " . _DB_PREFIX_ . "configuration_clientify");
             $this->api_key = $results_global[0]['clientify_api_key'];
         }
         public function Post_Base_Clientify($data, $key)
@@ -28,10 +28,23 @@ if (!class_exists('ClientifyApi')) {
                 CURLOPT_CUSTOMREQUEST => 'POST',
                 CURLOPT_POSTFIELDS => json_encode($data),
             ));
-            curl_setopt($curl, CURLOPT_HTTPHEADER, array('Content-Type:application/json', 'Authorization:Token ' . $key));
+            curl_setopt($curl, CURLOPT_HTTPHEADER, array(
+                'Content-Type:application/json',
+                'Authorization:Token ' . $key            
+            ));
             $response = curl_exec($curl);
+            $err = curl_error($curl);
             curl_close($curl);
-            return json_decode($response);
+
+            if ($err) {
+                return (object) ['detail' => "cURL Error: " . $err];
+            }
+
+            $decoded = json_decode($response);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                return (object) ['detail' => "JSON Decode Error: " . json_last_error_msg() . " | Raw response: " . substr($response, 0, 150)];
+            }
+            return $decoded;
         }
 
         public function Get_Api($end_point)
@@ -47,9 +60,17 @@ if (!class_exists('ClientifyApi')) {
                 CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
                 CURLOPT_CUSTOMREQUEST => 'GET',
             ));
-            curl_setopt($curl, CURLOPT_HTTPHEADER, array('Content-Type:application/json', 'Authorization:Token ' . $this->api_key));
+            curl_setopt($curl, CURLOPT_HTTPHEADER, array(
+                'Content-Type:application/json',
+                'Authorization:Token ' . $this->api_key
+            ));
             $response = curl_exec($curl);
+            $err = curl_error($curl);
             curl_close($curl);
+
+            if ($err) {
+                return json_encode(['detail' => "cURL Error: " . $err]);
+            }
             return $response;
         }
 
@@ -67,10 +88,23 @@ if (!class_exists('ClientifyApi')) {
                 CURLOPT_CUSTOMREQUEST => 'POST',
                 CURLOPT_POSTFIELDS => json_encode($data),
             ));
-            curl_setopt($curl, CURLOPT_HTTPHEADER, array('Content-Type:application/json', 'Authorization:Token ' . $this->api_key));
+            curl_setopt($curl, CURLOPT_HTTPHEADER, array(
+                'Content-Type:application/json',
+                'Authorization:Token ' . $this->api_key
+                        ));
             $response = curl_exec($curl);
+            $err = curl_error($curl);
             curl_close($curl);
-            return json_decode($response);
+
+            if ($err) {
+                return (object) ['detail' => "cURL Error: " . $err];
+            }
+
+            $decoded = json_decode($response);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                return (object) ['detail' => "JSON Decode Error: " . json_last_error_msg() . " | Raw response: " . substr($response, 0, 150)];
+            }
+            return $decoded;
         }
 
         public function Post_Order_Clientify($data)
@@ -87,10 +121,23 @@ if (!class_exists('ClientifyApi')) {
                 CURLOPT_CUSTOMREQUEST => 'POST',
                 CURLOPT_POSTFIELDS => json_encode($data),
             ));
-            curl_setopt($curl, CURLOPT_HTTPHEADER, array('Content-Type:application/json', 'Authorization:Token ' . $this->api_key));
+            curl_setopt($curl, CURLOPT_HTTPHEADER, array(
+                'Content-Type:application/json',
+                'Authorization:Token ' . $this->api_key
+            ));
             $response = curl_exec($curl);
+            $err = curl_error($curl);
             curl_close($curl);
-            return json_decode($response);
+
+            if ($err) {
+                return (object) ['detail' => "cURL Error: " . $err];
+            }
+
+            $decoded = json_decode($response);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                return (object) ['detail' => "JSON Decode Error: " . json_last_error_msg() . " | Raw response: " . substr($response, 0, 150)];
+            }
+            return $decoded;
         }
 
 
