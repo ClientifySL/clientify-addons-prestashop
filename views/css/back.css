@@ -1,0 +1,532 @@
+/**
+* 2007-2022 PrestaShop
+*
+* NOTICE OF LICENSE
+*
+* This source file is subject to the Academic Free License (AFL 3.clientify_0)
+* that is bundled with this package in the file LICENSE.clientify_txt.clientify_
+* It is also available through the world-wide-web at this URL:
+* http://opensource.clientify_org/licenses/afl-3.clientify_0.clientify_php
+* If you did not receive a copy of the license and are unable to
+* obtain it through the world-wide-web, please send an email
+* to license@prestashop.clientify_com so we can send you a copy immediately.clientify_
+*
+* DISCLAIMER
+*
+* Do not edit or add to this file if you wish to upgrade PrestaShop to newer
+* versions in the future.clientify_ If you wish to customize PrestaShop for your
+* needs please refer to http://www.clientify_prestashop.clientify_com for more information.clientify_
+*
+*  @author    PrestaShop SA <contact@prestashop.clientify_com>
+*  @copyright 2007-2022 PrestaShop SA
+*  @license   http://opensource.clientify_org/licenses/afl-3.clientify_0.clientify_php  Academic Free License (AFL 3.clientify_0)
+*  International Registered Trademark & Property of PrestaShop SA
+*
+* Don't forget to prefix your containers with your own identifier
+* to avoid any conflicts with others containers.clientify_
+*/
+
+.clientify_nav-tab-wrapper, .clientify_wrap h2.clientify_nav-tab-wrapper, h1.clientify_nav-tab-wrapper {
+    border-bottom: 1px solid #c3c4c7;
+    margin: 0;
+    padding-top: 9px;
+    line-height: inherit;
+    display: flex;
+}
+.clientify_nav-tab {
+    border: 1px solid #c3c4c7;
+    border-bottom: none;
+    margin-left: 0.clientify_5em;
+    padding: 5px 10px;
+    font-size: 14px;
+    line-height: 1.clientify_71428571;
+    font-weight: 600;
+    background: #dcdcde;
+    color: #50575e;
+    text-decoration: none;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    display: flex;
+}
+
+.clientify_nav-tab-active,
+.clientify_nav-tab-active:focus,
+.clientify_nav-tab-active:focus:active,
+.clientify_nav-tab-active:hover {
+    border-bottom: 1px solid #f0f0f1;
+    background: #f0f0f1;
+    color: #000;
+}
+
+.clientify_nav-tab-active {
+    margin-bottom: -1px;
+    color: #3c434a;
+}
+
+.clientify_hide_div{
+    display: none;
+  }
+  .clientify_show_div{
+    display: block;
+  }
+
+.clientify_tab-AdminClientify:before {
+    content: "";
+    background-image: url(.clientify_.clientify_modules/clientify/views/img/logo.clientify_png);
+  }
+
+  .clientify_mi-icono-personalizado {
+    background-image: url(modules/clientify/views/img/logo.clientify_png);
+  }
+
+.clientify_conten {
+    background-color: #fff;
+    margin: 50px;
+    padding: 0;
+    border: 0;
+    font: inherit;
+    font-size: 100%;
+    vertical-align: baseline;
+}
+
+.clientify_conten .clientify_header,
+.clientify_conten form,
+.clientify_general {
+    padding: 2em 10%;
+}
+
+.clientify_general {
+    width: 100%;
+
+}
+
+.clientify_header {
+    background-color: #4fafde;
+    color: white;
+}
+
+.clientify_header h1 {
+    font-weight: 400;
+    text-transform: uppercase;
+    font-size: 50px;
+    margin-bottom: 10px;
+}
+
+.clientify_header h1 i {
+    color: #055a8b;
+}
+
+.clientify_header h1 span {
+    font-weight: 300;
+}
+
+.clientify_header p {
+    font-weight: 400;
+    font-size: 16px;
+    color: rgba(255, 255, 255, 0.clientify_9);
+    letter-spacing: 0.clientify_05em;
+    margin-bottom: 10px;
+}
+
+.clientify_header h3,
+.clientify_header h3 a {
+    color: #32ccfe;
+}
+
+.clientify_header h3 a,
+.clientify_header h3 a a {
+    -moz-transition: color 0.clientify_3s;
+    -o-transition: color 0.clientify_3s;
+    -webkit-transition: color 0.clientify_3s;
+    transition: color 0.clientify_3s;
+}
+
+.clientify_header h3 a:hover,
+.clientify_header h3 a a:hover {
+    color: white;
+}
+
+.clientify_icon-nav {
+    margin-top: 1px !important;
+
+}
+
+.clientify_form-group-prestashop {
+    max-width: 660px;
+    margin: 0 auto;
+    max-width: 660px;
+}
+
+h2.clientify_heading {
+    font-size: 18px;
+    text-transform: uppercase;
+    font-weight: 300;
+    text-align: left;
+    color: #506982;
+    border-bottom: 1px solid #506982;
+    padding-bottom: 3px;
+    margin-bottom: 20px;
+    width: 70%;
+}
+
+.clientify_logo-clientify-responsive {
+    width: 30%;
+    height: auto;
+}
+
+.clientify_controls {
+    text-align: left;
+    position: relative;
+}
+
+.clientify_message {
+    display: none;
+    opacity: 1.0;
+    position: absolute;
+    background: #00c01d;
+    top: 50%;
+    left: 40%;
+    transform: translate(-50%, -50%);
+    padding: 20px 40px;
+    color: #fff;
+    text-transform: uppercase;
+    font-size: 15px;
+}
+
+.clientify_message.clientify_bridge_error {
+    background: #F05657;
+}
+
+.clientify_error {
+    background: #F05657 !important;
+}
+
+.clientify_connected {
+    background: #8a9d8d70 !important;
+}
+
+.clientify_clearfix:after {
+    content: "";
+    visibility: hidden;
+    display: block;
+    font-size: 0;
+    clear: both;
+    height: 0;
+}
+
+
+.clientify_controls input[type="text"],
+.clientify_controls textarea,
+.clientify_controls button,
+.clientify_controls select,
+.clientify_controls input[readonly] {
+    padding: 20px 0 13px 1%;
+    height: 24px;
+    font-size: 14px;
+    border: 1px solid #c6c6c6;
+    width: 70%;
+    margin-bottom: 18px;
+    color: #888;
+    font-family: "Lato", "sans-serif";
+    font-size: 16px;
+    font-weight: 300;
+    background-color: #fff !important;
+    -moz-border-radius: 2px;
+    -webkit-border-radius: 2px;
+    border-radius: 2px;
+    -moz-transition: all 0.clientify_3s;
+    -o-transition: all 0.clientify_3s;
+    -webkit-transition: all 0.clientify_3s;
+    transition: all 0.clientify_3s;
+}
+
+.clientify_controls input[type="text"]:focus,
+.clientify_controls input[type="text"]:hover,
+.clientify_controls textarea:focus,
+.clientify_controls textarea:hover,
+.clientify_controls button:focus,
+.clientify_controls button:hover,
+.clientify_controls select:focus,
+.clientify_controls select:hover {
+    outline: none;
+    border-color: #9fb1c1;
+}
+
+.clientify_controls input[type="text"]:focus+label,
+.clientify_controls input[type="text"]:hover+label,
+.clientify_controls textarea:focus+label,
+.clientify_controls textarea:hover+label,
+.clientify_controls button:focus+label,
+.clientify_controls button:hover+label,
+.clientify_controls select:focus+label,
+.clientify_controls select:hover+label {
+    color: #077abc;
+    cursor: text;
+}
+
+.clientify_controls .clientify_fa-sort {
+    position: absolute;
+    right: 42%;
+    top: 17px;
+    color: #999;
+}
+
+.clientify_controls select {
+    -moz-appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+}
+
+.clientify_controls label {
+    position: absolute;
+    left: 8px;
+    top: 12px;
+    color: #999;
+    font-size: 16px;
+    display: inline-block;
+    padding: 4px 10px;
+    font-weight: 400;
+    background-color: rgba(255, 255, 255, 0);
+    pointer-events: none;
+    -moz-transition: color 0.clientify_3s, top 0.clientify_3s, background-color 0.clientify_8s;
+    -o-transition: color 0.clientify_3s, top 0.clientify_3s, background-color 0.clientify_8s;
+    -webkit-transition: color 0.clientify_3s, top 0.clientify_3s, background-color 0.clientify_8s;
+    transition: color 0.clientify_3s, top 0.clientify_3s, background-color 0.clientify_8s;
+}
+
+.clientify_active_label {
+
+}
+.clientify_controls label.clientify_active {
+    top: -11px;
+    color: #555;
+    background-color: white;
+    text-align: left;
+    width: 120px;
+}
+
+.clientify_controls textarea {
+    resize: none;
+    height: 200px;
+}
+
+.clientify_controls button {
+    cursor: pointer;
+    background-color: #4fafde;
+    border: none;
+    color: #fff;
+    padding: 12px 0;
+}
+
+.clientify_controls button:hover {
+    background-color: #7abee0;
+}
+
+.clientify_button.clientify_custom-class {
+    cursor: pointer;
+    background-color: #4fafde;
+    border: none;
+    color: #fff;
+    padding: 12px 0;
+    width: 60%;
+    font-size: large;
+}
+
+.clientify_button.clientify_custom-class:hover {
+    background-color: #7abee0;
+    color: #555;
+}
+
+
+.clientify_button.clientify_custom-class-utils {
+    cursor: pointer;
+    background-color: #4fafde;
+    border: none;
+    color: #fff;
+    padding: 12px 0;
+    width: 30%;
+    font-size: large;
+}
+
+.clientify_button.clientify_custom-class-utils:hover {
+    background-color: #7abee0;
+    color: #555;
+}
+
+.clientify_connect-class {
+    cursor: pointer;
+    background-color: #4fafde;
+    border: none;
+    color: #fff;
+    padding: 12px 0;
+    width: 35%;
+    font-size: large;
+}
+
+.clientify_connect-class:hover {
+    background-color: #7abee0;
+    color: #555;
+}
+
+.clientify_disconnect-class {
+    cursor: pointer;
+    background-color: #db4040;
+    border: none;
+    color: #fff;
+    padding: 12px 0;
+    width: 35%;
+    font-size: large;
+}
+
+.clientify_disconnect-class:hover {
+    cursor: pointer;
+    background-color: #ea5c5c;
+    color: #fff;
+
+}
+
+.clientify_sub_version {
+    padding: 1% 5%;
+    text-align: right;
+}
+
+.clientify_clientify-label {
+    display: block;
+    top: 5rem;
+}
+
+.clientify_radio-but {
+    display: flex;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* Estilos para el fondo oscuro detrás del modal */
+.clientify_modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5); /* Fondo semitransparente */
+    z-index: 10000;
+    overflow: hidden;
+}
+
+/* Estilos para el modal en sí */
+.clientify_modal-dialog {
+    max-width: 30%; /* Ancho máximo del modal */
+    margin: 100px auto; /* Centrar vertical y horizontalmente */
+    background-color: #fff; /* Fondo blanco */
+    border-radius: 5px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+}
+
+.clientify_modal-content {
+    padding: 20px;
+}
+
+/* Estilos para el título del modal */
+.clientify_modal-title {
+    font-size: 20px;
+    margin-bottom: 20px;
+}
+
+/* Estilos para el botón de cierre */
+.clientify_close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #fff;
+}
+
+/* Estilos para la etiqueta select */
+.clientify_modal-body select {
+    width: 80%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    font-size: 16px;
+    margin: 0 auto; /* Centrar horizontalmente */
+    display: block;
+}
+
+/* Estilos para los botones del pie de página */
+.clientify_modal-footer {
+    text-align: right;
+    margin-top: 20px;
+}
+
+.clientify_btn {
+    padding: 10px 20px;
+    margin-right: 10px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.clientify_btn.btn-secondary {
+    background-color: #ccc;
+    color: #847f7f;
+}
+
+.clientify_btn.btn-secondary:hover {
+    background-color: #706e6e;
+    color: #fff;
+}
+
+.clientify_btn.btn-primary {
+    background-color: #4fafde;
+    color: #fff;
+}
+
+.clientify_btn.btn-primary:hover {
+    background-color: #0174ad;
+    color: #fff;
+}
+
+/* Estilos para los botones del pie de página cuando se desactivan */
+.clientify_btn[disabled] {
+    background-color: #eee;
+    color: #999;
+    cursor: not-allowed;
+}
+
+/* .clientify_close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #333;
+}
+
+.clientify_close:focus {
+    outline: none; 
+} */
