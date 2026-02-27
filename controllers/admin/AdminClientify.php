@@ -174,7 +174,7 @@ class AdminClientifyController extends ModuleAdminController
             
         }
         
-        $this->ajaxDie(json_encode($response));        
+        exit(json_encode($response));        
     }
 
 
@@ -239,7 +239,7 @@ class AdminClientifyController extends ModuleAdminController
             }
         }
         
-        $this->ajaxDie(json_encode($response)); 
+        exit(json_encode($response)); 
     }
 
     public function setYouTubeUrl($id_product, $youtube_url)
