@@ -26,12 +26,12 @@
 * to avoid any conflicts with others containers.
 */
 const module = "clientify"
-document.addEventListener('keyup', (event) => {
-    if (event.ctrlKey && event.altKey  && event.key == 'c') {
-		 $('#other_config').show(1000)
-    }
-	setTimeout(function(){ $('#other_config').hide(1000) }, 10000);
-});
+// document.addEventListener('keyup', (event) => {
+//     if (event.ctrlKey && event.altKey  && event.key == 'c') {
+// 		 $('#other_config').show(1000)
+//     }
+// 	setTimeout(function(){ $('#other_config').hide(1000) }, 10000);
+// });
 jQuery(document).ready(function () {
 	$("#CLIENTIFY_ORDER_STATUS").select2({
 		maximumSelectionLength: 5
@@ -56,18 +56,18 @@ jQuery(document).ready(function () {
 	function floatLabel(inputType){
 		$(inputType).each(function(){
 			var $this = $(this);
-			if ($this.val() != '' || $this.val() != 'blank') {
-					
+			// Si el campo ya tiene valor al cargar, marcamos el label como activo
+			if ($this.val() !== '' && $this.val() !== 'blank') {
 				$this.next().addClass("clientify_active");
-				}
-			// on focus add cladd active to label
-			$this.focus(function(){
+			}
+			// on focus add class active to label
+			$this.on('focus', function(){
 				$this.next().addClass("clientify_active");
 			});
-			//on blur check field and remove class if needed
-			$this.blur(function(){
+			// on blur check field and remove ONLY the float-label class if needed
+			$this.on('blur', function(){
 				if($this.val() === '' || $this.val() === 'blank'){
-					$this.next().removeClass();
+					$this.next().removeClass("clientify_active");
 				}
 			});
 		});

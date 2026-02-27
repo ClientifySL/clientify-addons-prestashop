@@ -23,13 +23,13 @@
 *  International Registered Trademark & Property of PrestaShop SA
 *}
 
-<script type="text/javascript" src="/modules/clientify/views/js/back.js"></script>
-<script type="text/javascript" src="/modules/clientify/views/js/select2.min.js"></script>
+<script type="text/javascript" src="{$module_dir}views/js/back.js"></script>
+<script type="text/javascript" src="{$module_dir}views/js/select2.min.js"></script>
 
 {* <div class="clientify_panel"> *}
 <div class="clientify_conten">
 	<header class="clientify_header">
-		<img src="/modules/clientify/views/img/clientify.svg" alt="Clientify"
+		<img src="{$module_dir}views/img/clientify.svg" alt="Clientify"
 			class="clientify_logo-clientify-responsive">
 		<!-- <h1>Clientify <span>with Forms</span></h1> -->
 		<p>Gestiona y automatiza tu Marketing y Ventas fácilmente.</p>
@@ -89,7 +89,7 @@
 					<div class="clientify_message"></div>
 				</div>
 			</div>
-			<div class="clientify_form-group-prestashop clientify_hide_div" id="other_config">
+			<div class="clientify_form-group-prestashop" id="other_config">
 				<h2 class="clientify_heading">Otras Configuraciones</h2>
 				<div class="clientify_controls" style="margin-bottom: 4% !important;">
 					<select name="CLIENTIFY_ORDER_STATUS" id="CLIENTIFY_ORDER_STATUS" multiple="multiple"
@@ -150,8 +150,8 @@
 </div>
 
 {* </div> *}
-<link rel="stylesheet" href="/modules/clientify/views/css/back.css">
-<link rel="stylesheet" href="/modules/clientify/views/css/select2.min.css">
+<link rel="stylesheet" href="{$module_dir}views/css/back.css">
+<link rel="stylesheet" href="{$module_dir}views/css/select2.min.css">
 {literal}
 	<script type="text/javascript">
 		let clientify_adminController = "{/literal}{$clientifyController|escape:'htmlall':'UTF-8'}{literal}";

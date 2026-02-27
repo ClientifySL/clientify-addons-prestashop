@@ -6,8 +6,8 @@ if (!class_exists('ClientifyApi')) {
     {
         var $api_key;
 
-        //var $api_url = 'https://ecommerce.ngrok.io/ecommerce/v2/';
-        var $api_url = 'https://api.clientify.com/ecommerce/v2/';
+        var $api_url = 'https://ecommerce.ngrok.io/ecommerce/v2/';
+        //var $api_url = 'https://api.clientify.com/ecommerce/v2/';
 
         public function __construct()
         {

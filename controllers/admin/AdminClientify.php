@@ -82,9 +82,9 @@ class AdminClientifyController extends ModuleAdminController
             'orderstatus' => $this->getOrdersSatus(),
             'shops' => Shop::getShops(),
             'data_config' => $results[0],
-            'shop_config' => $shop_name
-
-
+            'shop_config' => $shop_name,
+            // Ruta base del módulo (para JS/CSS/IMG en PS 8/9)
+            'module_dir' => $module->getPathUri(),
         ));
         $this->setTemplate('adminclientify.tpl');
 

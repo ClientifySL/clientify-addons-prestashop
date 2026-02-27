@@ -300,11 +300,13 @@ h2.clientify_heading {
 
 }
 .clientify_controls label.clientify_active {
-    top: -11px;
+    /* Elevar la etiqueta flotante y evitar solapamientos / saltos de línea */
+    top: -18px;
     color: #555;
     background-color: white;
     text-align: left;
-    width: 120px;
+    width: auto;
+    white-space: nowrap;
 }
 
 .clientify_controls textarea {
