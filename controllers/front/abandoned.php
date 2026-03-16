@@ -2,9 +2,7 @@
 
 class ClientifyAbandonedModuleFrontController extends ModuleFrontController
 {
-    public $ajax = true;
-
-    public function displayAjax()
+    public function initContent()
     {
         $results_global = Db::getInstance()->executeS("SELECT * FROM " . _DB_PREFIX_ . "configuration_clientify");
         include_once(__DIR__ . '/../admin/controller_clientify_plugin_core.php');
@@ -46,19 +44,19 @@ class ClientifyAbandonedModuleFrontController extends ModuleFrontController
                             'page' => $page
                         );
                         $response = $customApi->get_abandoned_carts($params);
-                        $this->ajaxRender($customApi->Data_response($response, 200));
+                        die($customApi->Data_response($response, 200));
                         break;
                     case 'POST':
                     case 'PATCH':
                     case 'PUT':
                     case 'DELETE':
                         $r = array('message' => ' Not available');
-                        $this->ajaxRender($customApi->Data_response($r, 405));
+                        die($customApi->Data_response($r, 405));
                         break;
                 }
             } else {
                 $response = array('Error' => 'Auth Error', 'data' => 'authentication code not found');
-                $this->ajaxRender($customApi->Data_response($response, 401));
+                die($customApi->Data_response($response, 401));
             }
         }
     }

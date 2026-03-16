@@ -2,9 +2,7 @@
 
 class ClientifyScriptsModuleFrontController extends ModuleFrontController
 {
-    public $ajax = true;
-
-    public function displayAjax()
+    public function initContent()
     {
         $results_global = Db::getInstance()->executeS("SELECT * FROM " . _DB_PREFIX_ . "configuration_clientify");
         include_once(__DIR__ . '/../admin/controller_clientify_plugin_core.php');
@@ -29,7 +27,7 @@ class ClientifyScriptsModuleFrontController extends ModuleFrontController
                     case 'GET':
                         $get_script = Db::getInstance()->executeS("SELECT clientify_script FROM " . _DB_PREFIX_ . "configuration_clientify");
                         $r = array('message' => 'success', 'script' => $get_script[0]['clientify_script']);
-                        $this->ajaxRender($customApi->Data_response($r, 200));
+                        die($customApi->Data_response($r, 200));
                         break;
                     case 'POST':
                         $json = Tools::file_get_contents('php://input');
@@ -42,35 +40,35 @@ class ClientifyScriptsModuleFrontController extends ModuleFrontController
 
                             if ($get_script[0]['clientify_script'] == $params->set_script) {
                                 $r = array('message' => 'success');
-                                $this->ajaxRender($customApi->Data_response($r, 200));
+                                die($customApi->Data_response($r, 200));
                             } else {
                                 $r = array('message' => 'Error Script');
-                                $this->ajaxRender($customApi->Data_response($r, 500));
+                                die($customApi->Data_response($r, 500));
                             }
                         } else {
                             $r = array('message' => 'Error Request Param Script null');
-                            $this->ajaxRender($customApi->Data_response($r, 400));
+                            die($customApi->Data_response($r, 400));
                         }
                         break;
                     case 'PATCH':
                     case 'PUT':
                         $r = array('message' => 'Method Not Allowed');
-                        $this->ajaxRender($customApi->Data_response($r, 405));
+                        die($customApi->Data_response($r, 405));
                         break;
                     case 'DELETE':
                         $data_config = array('clientify_script' => null);
                         Db::getInstance()->update('configuration_clientify', $data_config);
                         $r = array('message' => 'Script Delete succses');
-                        $this->ajaxRender($customApi->Data_response($r, 200));
+                        die($customApi->Data_response($r, 200));
                         break;
                     default:
                         $r = array('message' => 'Method Not Allowed');
-                        $this->ajaxRender($customApi->Data_response($r, 405));
+                        die($customApi->Data_response($r, 405));
                         break;
                 }
             } else {
                 $response = array('Error' => 'Auth Error', 'data' => 'authentication code not found');
-                $this->ajaxRender($customApi->Data_response($response, 401));
+                die($customApi->Data_response($response, 401));
             }
         }
     }

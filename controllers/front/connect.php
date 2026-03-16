@@ -2,9 +2,7 @@
 
 class ClientifyConnectModuleFrontController extends ModuleFrontController
 {
-    public $ajax = true;
-
-    public function displayAjax()
+    public function initContent()
     {
         $results_global = Db::getInstance()->executeS("SELECT * FROM " . _DB_PREFIX_ . "configuration_clientify");
         include_once(__DIR__ . '/../admin/controller_clientify_plugin_core.php');
@@ -14,7 +12,7 @@ class ClientifyConnectModuleFrontController extends ModuleFrontController
             switch ($_SERVER['REQUEST_METHOD']) {
                 case 'GET':
                     $r = array('message' => ' Not available');
-                    $this->ajaxRender($customApi->Data_response($r, 200));
+                    die($customApi->Data_response($r, 200));
                     break;
                 case 'POST':
                     $json = Tools::file_get_contents('php://input');
@@ -23,21 +21,21 @@ class ClientifyConnectModuleFrontController extends ModuleFrontController
                     if (Tools::getValue('action')) {
                         $params = array('action' => Tools::getValue('action'));
                         $response = $customApi->plugin_handling($params);
-                        $this->ajaxRender($customApi->Data_response($response, 200));
+                        die($customApi->Data_response($response, 200));
                     } elseif (isset($paramsObj->action)) {
                         $params = array('action' => $paramsObj->action);
                         $response = $customApi->plugin_handling($params);
-                        $this->ajaxRender($customApi->Data_response($response, 200));
+                        die($customApi->Data_response($response, 200));
                     } else {
                         $r = array('message' => 'Action required');
-                        $this->ajaxRender($customApi->Data_response($r, 500));
+                        die($customApi->Data_response($r, 500));
                     }
                     break;
                 case 'PATCH':
                 case 'PUT':
                 case 'DELETE':
                     $r = array('message' => ' Not available');
-                    $this->ajaxRender($customApi->Data_response($r, 405));
+                    die($customApi->Data_response($r, 405));
                     break;
             }
         }

@@ -361,98 +361,96 @@ class Clientify extends Module
     public function hookModuleRoutes()
     {
         return [
-            'module-restapimodule-orders' => [
+            'module-clientify-orders' => [
                 'rule' => 'clientify/orders',
                 'keywords' => [],
                 'controller' => 'orders',
                 'params' => [
                     'fc' => 'module',
-                    'module' => 'clientify'
+                    'module' => 'clientify',
                 ]
             ],
-            'module-restapimodule-products' => [
+            'module-clientify-products' => [
                 'rule' => 'clientify/products',
                 'keywords' => [],
                 'controller' => 'products',
                 'params' => [
                     'fc' => 'module',
-                    'module' => 'clientify'
+                    'module' => 'clientify',
                 ]
             ],
-            'module-restapimodule-contacts' => [
+            'module-clientify-contacts' => [
                 'rule' => 'clientify/contacts',
                 'keywords' => [],
                 'controller' => 'contacts',
                 'params' => [
                     'fc' => 'module',
-                    'module' => 'clientify'
+                    'module' => 'clientify',
                 ]
             ],
-            'module-restapimodule-abandoned' => [
+            'module-clientify-abandoned' => [
                 'rule' => 'clientify/abandoned',
                 'keywords' => [],
                 'controller' => 'abandoned',
                 'params' => [
                     'fc' => 'module',
-                    'module' => 'clientify'
+                    'module' => 'clientify',
                 ]
             ],
-            'module-restapimodule-scripts' => [
+            'module-clientify-scripts' => [
                 'rule' => 'clientify/scripts',
                 'keywords' => [],
                 'controller' => 'scripts',
                 'params' => [
                     'fc' => 'module',
-                    'module' => 'clientify'
+                    'module' => 'clientify',
                 ]
             ],
-            'module-restapimodule-connect' => [
+            'module-clientify-connect' => [
                 'rule' => 'clientify/connect',
                 'keywords' => [],
                 'controller' => 'connect',
                 'params' => [
                     'fc' => 'module',
-                    'module' => 'clientify'
+                    'module' => 'clientify',
                 ]
             ],
-            'module-restapimodule-sync_abandoned' => [
+            'module-clientify-syncabandoned' => [
                 'rule' => 'clientify/sync_abandoned',
                 'keywords' => [],
-                'controller' => 'sync_abandoned',
+                'controller' => 'syncabandoned',
                 'params' => [
                     'fc' => 'module',
-                    'module' => 'clientify'
+                    'module' => 'clientify',
                 ]
             ],
-            'module-restapimodule-sync_orders' => [
+            'module-clientify-syncorders' => [
                 'rule' => 'clientify/sync_orders',
                 'keywords' => [],
-                'controller' => 'sync_orders',
+                'controller' => 'syncorders',
                 'params' => [
                     'fc' => 'module',
-                    'module' => 'clientify'
+                    'module' => 'clientify',
                 ]
             ],
-            'module-restapimodule-sync_contacts' => [
+            'module-clientify-synccontacts' => [
                 'rule' => 'clientify/sync_contacts',
                 'keywords' => [],
-                'controller' => 'sync_contacts',
+                'controller' => 'synccontacts',
                 'params' => [
                     'fc' => 'module',
-                    'module' => 'clientify'
+                    'module' => 'clientify',
                 ]
             ],
-            'module-restapimodule-get_data' => [
+            'module-clientify-getdata' => [
                 'rule' => 'clientify/get_data',
                 'keywords' => [],
-                'controller' => 'get_data',
+                'controller' => 'getdata',
                 'params' => [
                     'fc' => 'module',
-                    'module' => 'clientify'
+                    'module' => 'clientify',
                 ]
             ],
-
-
         ];
     }
 
