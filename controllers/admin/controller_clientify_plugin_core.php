@@ -469,6 +469,7 @@ class AdminCustomClientifyEndPoint
 		// Verificar si se encontraron combinaciones
 		if (!empty($combinations)) {
 			// Iterar sobre las combinaciones y mostrar la información
+			$api = new ClientifyApi;
 			foreach ($combinations as $combination) {
 				$specific_price_output = array();
 				$price = ProductCore::getPriceStatic(
@@ -523,10 +524,9 @@ class AdminCustomClientifyEndPoint
 					'discount' => 0,
 					//$discount
 				);
-				$api = new ClientifyApi;
 				$clientify_product = $api->Post_Order_Clientify($data);
-				return $clientify_product;
 			}
+			return $clientify_product;
 		} else {
 
 			$product_name = ProductCore::getProductName($product_id);
@@ -1080,6 +1080,7 @@ class AdminCustomClientifyEndPoint
 	public function get_all_products($params)
 	{
 		$all = array();
+		$url_base = $this->GetApiUrl($this->data_config['id_shop']);
 		$new_categories = [];
 		$page = (int) (!isset($params["page"])) ? 1 : $params["page"];
 		$per_page = (int) $params["per_page"];
@@ -1228,6 +1229,8 @@ class AdminCustomClientifyEndPoint
 					}
 
 					$data = array(
+						'status' => 'product',
+						'store_url' => $url_base,
 						'id' => (int) $combination['id_product_attribute'],
 						'name' => $product_name,
 						'description' => isset($product->description[1]) ? trim(strip_tags($product->description[1])) : '',
@@ -1254,6 +1257,8 @@ class AdminCustomClientifyEndPoint
 				}
 
 				$data = array(
+					'status' => 'product',
+					'store_url' => $url_base,
 					'id' => $product->id,
 					'name' => $product_name,
 					'description' => isset($product->description[1]) ? trim(strip_tags($product->description[1])) : '',
