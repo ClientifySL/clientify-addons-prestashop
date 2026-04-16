@@ -289,10 +289,23 @@ class Clientify extends Module
      */
     public function hookBackOfficeHeader()
     {
-        if (Tools::getValue('module_name') == $this->name) {
+        if (Tools::getValue('module_name') == $this->name || Tools::getValue('controller') == 'AdminClientify') {
             $this->context->controller->addJS($this->_path . 'views/js/back.js');
             $this->context->controller->addCSS($this->_path . 'views/css/back.css');
         }
+
+        // Inyectar CSS del ícono del menú lateral en TODAS las páginas del admin
+        $logoUrl = $this->getPathUri() . 'views/img/logo.png';
+        return '<style>
+            #subtab-AdminClientify .material-icons:first-of-type {
+                font-size: 0 !important;
+                background: url("' . $logoUrl . '") center / contain no-repeat;
+                width: 20px !important;
+                height: 20px !important;
+                display: inline-block !important;
+                vertical-align: middle;
+            }
+        </style>';
     }
     // /**
     //  * Add the CSS & JavaScript files you want to be added on the FO.
