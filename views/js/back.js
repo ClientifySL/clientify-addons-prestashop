@@ -114,6 +114,7 @@ jQuery(document).ready(function () {
 					$.ajax({
 						type: 'POST',
 						dataType: 'JSON',
+						timeout: 65000,
 						url: decodeURIComponent(clientify_adminController).replace(/&amp;/g, '&'),
 						data: {
 							ajax: true,
@@ -122,6 +123,13 @@ jQuery(document).ready(function () {
 							'order_stat': order_stat,
 							'ac_time': ac_time,
 							'id_shop':	id_shop,
+						},
+						error: function(xhr, status) {
+							var msg = status === 'timeout'
+								? 'Tiempo de espera agotado al conectar con Clientify'
+								: 'Error de conexi\u00f3n con Clientify';
+							statusMessage(msg, 'error');
+							btnconnect.removeAttr("disabled").text("Conectar").addClass('connect-class').removeClass('error');
 						},
 						success: function(response) {
 

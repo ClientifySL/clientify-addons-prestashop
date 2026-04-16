@@ -29,7 +29,7 @@
 {* <div class="clientify_panel"> *}
 <div class="clientify_conten">
 	<header class="clientify_header">
-		<img src="{$module_dir}views/img/clientify.svg" alt="Clientify"
+		<img src="{$module_dir}views/img/CL20horizontal.png" alt="Clientify"
 			class="clientify_logo-clientify-responsive">
 		<!-- <h1>Clientify <span>with Forms</span></h1> -->
 		<p>Gestiona y automatiza tu Marketing y Ventas fácilmente.</p>
@@ -75,15 +75,15 @@
 				<div class="clientify_controls">
 					<input type="text" id="key" class="clientify_floatLabel-prestashop" name="CLIENTIFY_API_KEY"
 						value="{$data_config.clientify_api_key}">
-					<label for="key">
-						{l s='Clientify Api Key' mod='clientify	'}
+					<label for="key" {if isset($data_config.clientify_api_key) && $data_config.clientify_api_key != ''}class="clientify_active"{/if}>
+						{l s='Clientify Api Key' mod='clientify'}
 					</label>
 				</div>
 				<div class="clientify_controls">
 					<input type="text" id="storekey" class="clientify_floatLabel-prestashop" name="CLIENTIFY_STORE_KEY"
 						value="{$data_config.clientify_store_key}" readonly>
 
-					<label for="storekey" class="clientify_active_label">
+					<label for="storekey" {if isset($data_config.clientify_store_key) && $data_config.clientify_store_key != ''}class="clientify_active"{/if}>
 						{l s='Store Key' mod='clientify'}
 					</label>
 					<div class="clientify_message"></div>
@@ -106,8 +106,8 @@
 							</option>
 						{/foreach}
 					</select>
-					<label for="orderstatus"
-						style="top: -20px !important;color: #555 !important;background-color: white !important;">
+					<label for="orderstatus" class="clientify_active"
+						style="top: -10px !important; left: 10px !important; padding: 0 6px !important; font-size: 14px !important; color: #555 !important; background-color: white !important;">
 						{l s='Order Status' mod='clientify'}
 					</label>
 				</div>
@@ -117,15 +117,15 @@
 					<input type="text" id="CLIENTIFY_id_shop" class="clientify_floatLabel-prestashop"
 						name="CLIENTIFY_id_shop" value="{$shop_config}" readonly>
 
-					<label for="CLIENTIFY_id_shop">
+					<label for="CLIENTIFY_id_shop" {if isset($shop_config) && $shop_config != ''}class="clientify_active"{/if}>
 						{l s='Tienda Conectada' mod='clientify'}
 					</label>
 				</div>
 				<div class="clientify_controls">
 					<input type="text" id="url" class="clientify_floatLabel-prestashop" name="URL_BASE" value="{$url_base}"
 						readonly>
-					<label for="url">
-						{l s='API Url' mod='clientify'}
+					<label for="url" {if isset($url_base) && $url_base != ''}class="clientify_active"{/if}>
+						{l s='Clientify Api Url' mod='clientify'}
 					</label>
 				</div>
 
@@ -135,7 +135,7 @@
 		</form>
 
 		<div class='general'>
-			<div class="clientify_form-group-prestashop">
+			<div class="clientify_form-group-prestashop clientify-button-wrapper">
 				<button id="connect" class="clientify_connect-class" data-loading-text="Connecting"
 					type="button">Conectar</button>
 				<button id="disconnect" class="clientify_disconnect-class" type="button">Desconectar</button>
