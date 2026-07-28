@@ -153,9 +153,10 @@ class ClientifyUpdater
         $moduleDir = _PS_MODULE_DIR_ . 'clientify/';
         self::copyDirectory($moduleSource, $moduleDir);
 
-        // Limpiar tmp y caché
+        // Limpiar tmp, caché del updater y caché de Smarty
         self::cleanTmp($tmpDir);
         Configuration::deleteByName(self::CACHE_KEY);
+        Tools::clearSmartyCache();
 
         return ['success' => true, 'message' => 'Módulo actualizado a la versión ' . $release['version'] . ' correctamente.'];
     }
