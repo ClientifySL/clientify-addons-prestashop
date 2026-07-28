@@ -11,6 +11,67 @@
 
 <div class="clientify_conten">
 
+	{* ===== UPDATE BANNER ===== *}
+	{if $update_available && $latest_release}
+	<div class="alert alert-warning" id="clientify-update-banner" style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+		<div>
+			<strong><i class="material-icons" style="vertical-align:middle;font-size:18px;">system_update_alt</i>
+			{l s='Nueva versión disponible' mod='clientify'}: <span style="font-weight:700;">v{$latest_release.version}</span></strong>
+			<span style="color:#666;font-size:13px;margin-left:8px;">({l s='Instalada' mod='clientify'}: v{$current_version})</span>
+		</div>
+		<div style="display:flex;gap:8px;align-items:center;">
+			<a href="{$latest_release.html_url|escape:'html':'UTF-8'}" target="_blank" class="btn btn-default btn-sm">
+				<i class="material-icons" style="font-size:14px;vertical-align:middle;">open_in_new</i>
+				{l s='Ver cambios' mod='clientify'}
+			</a>
+			<button type="button" class="btn btn-primary btn-sm" id="clientify-btn-update">
+				<i class="material-icons" style="font-size:14px;vertical-align:middle;">download</i>
+				{l s='Actualizar ahora' mod='clientify'}
+			</button>
+		</div>
+	</div>
+	<div id="clientify-update-progress" style="display:none;" class="alert alert-info">
+		<i class="material-icons" style="vertical-align:middle;animation:spin 1s linear infinite;">autorenew</i>
+		{l s='Descargando e instalando actualización, por favor espera...' mod='clientify'}
+	</div>
+	<div id="clientify-update-result" style="display:none;"></div>
+	<style>@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style>
+	<script>
+	(function(){
+		document.getElementById('clientify-btn-update').addEventListener('click', function(){
+			if (!confirm('{l s='¿Deseas actualizar el módulo Clientify ahora? El sitio seguirá funcionando durante la actualización.' mod='clientify'}')) return;
+			document.getElementById('clientify-update-banner').style.display   = 'none';
+			document.getElementById('clientify-update-progress').style.display = 'block';
+
+			fetch('{$clientifyController|escape:'javascript':'UTF-8'}&action=runUpdate&ajax=1', {
+				method: 'POST',
+				headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+			})
+			.then(function(r){ return r.json(); })
+			.then(function(data){
+				document.getElementById('clientify-update-progress').style.display = 'none';
+				var el = document.getElementById('clientify-update-result');
+				if (data.success) {
+					el.className = 'alert alert-success';
+					el.innerHTML = '<i class="material-icons" style="vertical-align:middle;">check_circle</i> ' + data.message + ' <a href="" style="margin-left:8px;">{l s='Recargar página' mod='clientify'}</a>';
+				} else {
+					el.className = 'alert alert-danger';
+					el.innerHTML = '<i class="material-icons" style="vertical-align:middle;">error</i> ' + data.message;
+				}
+				el.style.display = 'block';
+			})
+			.catch(function(){
+				document.getElementById('clientify-update-progress').style.display = 'none';
+				var el = document.getElementById('clientify-update-result');
+				el.className = 'alert alert-danger';
+				el.innerHTML = '{l s='Error de conexión al intentar actualizar.' mod='clientify'}';
+				el.style.display = 'block';
+			});
+		});
+	})();
+	</script>
+	{/if}
+
 	<header class="clientify_header">
 		<img src="{$module_dir}views/img/CL20horizontal.png" alt="Clientify"
 			class="clientify_logo-clientify-responsive">

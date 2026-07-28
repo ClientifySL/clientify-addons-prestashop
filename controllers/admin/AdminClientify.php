@@ -12,6 +12,7 @@ if (!defined('_PS_VERSION_')) {
 include_once(__DIR__ . '/../../clientify.php');
 include_once(__DIR__ . '/Api.php');
 include_once(__DIR__ . '/controller_clientify_plugin_core.php');
+include_once(__DIR__ . '/../../classes/ClientifyUpdater.php');
 
 $action = Tools::getValue('action');
 $customApi = new AdminCustomClientifyEndPoint();
@@ -112,16 +113,29 @@ class AdminClientifyController extends ModuleAdminController
             'SELECT * FROM `' . _DB_PREFIX_ . 'clientify_logs` ORDER BY `created_at` DESC LIMIT 100'
         );
 
+        // Update check
+        $updateAvailable = false;
+        $latestRelease   = null;
+        try {
+            $latestRelease   = ClientifyUpdater::getLatestRelease();
+            $updateAvailable = $latestRelease && version_compare($latestRelease['version'], $module->version, '>');
+        } catch (Exception $e) {
+            // silencioso — no interrumpir la carga del admin
+        }
+
         $this->context->smarty->assign(array(
-            'clientifyController' => $adminController,
-            'tab' => $tab,
-            'url_base' => $base_url,
-            'orderstatus' => $this->getOrdersSatus(),
-            'shops' => Shop::getShops(),
-            'data_config' => $results[0],
-            'shop_config' => $shop_name,
-            'module_dir' => $module->getPathUri(),
-            'clientify_logs' => $logs,
+            'clientifyController'  => $adminController,
+            'tab'                  => $tab,
+            'url_base'             => $base_url,
+            'orderstatus'          => $this->getOrdersSatus(),
+            'shops'                => Shop::getShops(),
+            'data_config'          => $results[0],
+            'shop_config'          => $shop_name,
+            'module_dir'           => $module->getPathUri(),
+            'clientify_logs'       => $logs,
+            'update_available'     => $updateAvailable,
+            'latest_release'       => $latestRelease,
+            'current_version'      => $module->version,
         ));
         $this->setTemplate('adminclientify.tpl');
 
@@ -295,10 +309,27 @@ class AdminClientifyController extends ModuleAdminController
     function getOrdersSatus(){
         $sql = "SELECT id_order_state,name FROM " . _DB_PREFIX_ . "order_state_lang";
         $result = Db::getInstance()->executeS($sql);
-  
+
         return $result;
     }
 
-    
+    public function ajaxProcessrunUpdate()
+    {
+        $module = new Clientify();
+        $result = ClientifyUpdater::doUpdate($module->version);
+        exit(json_encode($result));
+    }
+
+    public function ajaxProcesscheckUpdate()
+    {
+        $module  = new Clientify();
+        $release = ClientifyUpdater::getLatestRelease();
+        $hasUpdate = $release && version_compare($release['version'], $module->version, '>');
+        exit(json_encode([
+            'update_available' => $hasUpdate,
+            'latest_release'   => $release,
+            'current_version'  => $module->version,
+        ]));
+    }
 
 }
