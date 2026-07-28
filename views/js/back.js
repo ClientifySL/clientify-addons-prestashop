@@ -74,21 +74,21 @@ jQuery(document).ready(function () {
 	}
 	floatLabel(".clientify_floatLabel-prestashop");
 	// just add a class of "floatLabel to the input field!"
-	/* displays the message in the menssage div */
 	function statusMessage(message, status) {
-    	if (status == 'success') {
-      		classMessage.removeClass('clientify_bridge_error');
-    	} else {
-      		classMessage.addClass('clientify_bridge_error');
-    	}
-    	classMessage.html('<span>' + message + '</span>');
-    	classMessage.fadeIn("slow");
-    	classMessage.fadeOut(7000);
-    	var messageClear = setTimeout(function(){
-      	classMessage.html('');
-    	}, 3000);
-    	clearTimeout(messageClear);
-  	};
+		if (status === 'success') {
+			if (typeof showSuccessMessage === 'function') {
+				showSuccessMessage(message);
+			} else if (typeof $.growl !== 'undefined') {
+				$.growl.notice({ title: '', message: message });
+			}
+		} else {
+			if (typeof showErrorMessage === 'function') {
+				showErrorMessage(message);
+			} else if (typeof $.growl !== 'undefined') {
+				$.growl.error({ title: '', message: message });
+			}
+		}
+	};
 
 	connect.click(function() {
 		var btnconnect = jQuery(this);

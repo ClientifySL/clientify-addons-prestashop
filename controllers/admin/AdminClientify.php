@@ -47,15 +47,48 @@ class AdminClientifyController extends ModuleAdminController
       
         }
 
+    public static function ensureLogsTable()
+    {
+        Db::getInstance()->execute(
+            'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'clientify_logs` (
+                `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+                `type` VARCHAR(20) NOT NULL DEFAULT \'info\',
+                `message` TEXT NOT NULL,
+                `created_at` DATETIME NOT NULL,
+                PRIMARY KEY (`id`),
+                KEY `idx_created_at` (`created_at`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8;'
+        );
+    }
+
+    public static function addLog($type, $message)
+    {
+        self::ensureLogsTable();
+        Db::getInstance()->insert('clientify_logs', [
+            'type'       => pSQL($type),
+            'message'    => pSQL($message),
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+    }
+
+    public static function cleanOldLogs()
+    {
+        self::ensureLogsTable();
+        Db::getInstance()->execute(
+            'DELETE FROM `' . _DB_PREFIX_ . 'clientify_logs` WHERE `created_at` < DATE_SUB(NOW(), INTERVAL 15 DAY)'
+        );
+    }
+
     public function assign()
-    {       
-        $endpoint_class = new AdminCustomClientifyEndPoint(); 
+    {
+        self::ensureLogsTable();
+        self::cleanOldLogs();
+
+        $endpoint_class = new AdminCustomClientifyEndPoint();
         $module = new Clientify();
         $shop = new Shop((int)$this->context->shop->id);
         $order_status = new OrderReturnState(1);
 
-      
-        //$_GET['tab'] = 'logs';
         $clientify_api = Configuration::get('CLIENTIFY_MODULE_API');
         $tab = isset($_GET['tab']) ? $_GET['tab'] : 'settings';
 
@@ -75,6 +108,10 @@ class AdminClientifyController extends ModuleAdminController
         }
         $adminController = $this->context->link->getAdminLink('AdminClientify');
 
+        $logs = Db::getInstance()->executeS(
+            'SELECT * FROM `' . _DB_PREFIX_ . 'clientify_logs` ORDER BY `created_at` DESC LIMIT 100'
+        );
+
         $this->context->smarty->assign(array(
             'clientifyController' => $adminController,
             'tab' => $tab,
@@ -83,8 +120,8 @@ class AdminClientifyController extends ModuleAdminController
             'shops' => Shop::getShops(),
             'data_config' => $results[0],
             'shop_config' => $shop_name,
-            // Ruta base del módulo (para JS/CSS/IMG en PS 8/9)
             'module_dir' => $module->getPathUri(),
+            'clientify_logs' => $logs,
         ));
         $this->setTemplate('adminclientify.tpl');
 
@@ -128,53 +165,48 @@ class AdminClientifyController extends ModuleAdminController
 
         if (is_null($response) || isset($response->detail)) {
 
-            $data= is_null($response) !=    '' ? "error" : $response->detail;
-            
-            
+            $data = is_null($response) ? 'error' : $response->detail;
+            $logMsg = 'Conectar: ' . (is_null($response) ? 'Sin respuesta de la API' : 'Detalle API: ' . $response->detail);
+            self::addLog('error', $logMsg);
+
             $response = array(
                 'data' => array(
-                        'status' => $data,
-                    )
-                );
+                    'status' => $data,
+                    'api_message' => $logMsg,
+                )
+            );
 
-                $data_config = array(
-                    'id_shop' => $id_shop,
-                    'clientify_api_key' => $key,
-                    //'clientify_script' => ,
-                    'clientify_order_status' => $order_sta,
-                    'clientify_cart_hour' => $ac_time,
-                    'clientify_store_key' => $key_uid,
-                    'clientify_module_status' => 0
-                );
-                $db->update('configuration_clientify', $data_config);
-            
-        }else {
+            $data_config = array(
+                'id_shop' => $id_shop,
+                'clientify_api_key' => $key,
+                'clientify_order_status' => $order_sta,
+                'clientify_cart_hour' => $ac_time,
+                'clientify_store_key' => $key_uid,
+                'clientify_module_status' => 0
+            );
+            $db->update('configuration_clientify', $data_config);
+
+        } else {
             foreach ($response as $obj) {
                 $status = $obj->status;
-            }     
+            }
             if ($status == 'success') {
                 $data_config = array(
                     'id_shop' => $id_shop,
                     'clientify_api_key' => $key,
-                    //'clientify_script' => ,
                     'clientify_order_status' => $order_sta,
                     'clientify_cart_hour' => $ac_time,
                     'clientify_store_key' => $key_uid,
                     'clientify_module_status' => 1
                 );
                 $db->update('configuration_clientify', $data_config);
-    
-                // Configuration::updateValue('CLIENTIFY_API_KEY', $key);
-                // Configuration::updateValue('CLIENTIFY_STORE_KEY', $key_uid);
-                // Configuration::updateValue('CLIENTIFY_CART_HOUR', $ac_time);
-                // Configuration::updateValue('CLIENTIFY_ORDER_STATUS', $order_sta);
-                // //Configuration::updateValue('CLIENTIFY_id_shop', $id_shop);
-                // Configuration::updateValue('CLIENTIFY_STATUS', 1);
+                self::addLog('success', 'Conexión exitosa con Clientify. Tienda: ' . $id_shop);
+            } else {
+                self::addLog('error', 'Error al conectar con Clientify. Estado: ' . $status);
             }
-            
         }
-        
-        exit(json_encode($response));        
+
+        exit(json_encode($response));
     }
 
 
@@ -208,27 +240,28 @@ class AdminClientifyController extends ModuleAdminController
 		}
         if (is_null($response) || isset($response->detail)) {
 
-            
-
             $data_config = array(
                 'clientify_script' => null,
                 'clientify_cart_hour' => null,
                 'clientify_module_status' => 0
             );
             $db->update('configuration_clientify', $data_config);
-            $data= is_null($response) !=    '' ? "error" : $response->detail;
+            $data = is_null($response) ? 'error' : $response->detail;
+            $logMsg = is_null($response) ? 'Desconectar: Sin respuesta de la API' : 'Desconectar - Detalle API: ' . $response->detail;
+            self::addLog('error', $logMsg);
 
             $response = array(
                 'data' => array(
-                        'status' => $data
-                    )
-                );
-            
-        }else {
+                    'status' => $data,
+                    'api_message' => $logMsg,
+                )
+            );
+
+        } else {
             foreach ($response as $obj) {
                 $status = $obj->status;
-            }     
-            if ($status == 'success' || $status == 'failed' || $status == 'error' ) {
+            }
+            if ($status == 'success' || $status == 'failed' || $status == 'error') {
 
                 $data_config = array(
                     'clientify_script' => null,
@@ -236,10 +269,12 @@ class AdminClientifyController extends ModuleAdminController
                     'clientify_module_status' => 0
                 );
                 $db->update('configuration_clientify', $data_config);
+                $logType = ($status == 'success') ? 'success' : 'warning';
+                self::addLog($logType, 'Desconexión de Clientify. Estado: ' . $status);
             }
         }
-        
-        exit(json_encode($response)); 
+
+        exit(json_encode($response));
     }
 
     public function setYouTubeUrl($id_product, $youtube_url)
