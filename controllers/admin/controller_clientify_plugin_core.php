@@ -375,8 +375,8 @@ class AdminCustomClientifyEndPoint
 			'store_url' => $url_base,
 			'currency' => $currency['iso_code'],
 			'products' => $items,
-			'shipping' => $order->total_shipping == 0 ? '0' : number_format($order->total_shipping, 2, '.', ''),
-			'price' => number_format($order->total_paid, 2, '.', ''),
+			'shipping' => $order->total_shipping_tax_incl == 0 ? '0' : number_format($order->total_shipping_tax_incl, 2, '.', ''),
+			'price' => number_format($order->total_paid_tax_incl, 2, '.', ''),
 			'coupon' => $order->gift,
 		);
 		if (!empty($lang)) {
@@ -953,8 +953,8 @@ class AdminCustomClientifyEndPoint
 				'store_url' => $url_base,
 				'currency' => $currency['iso_code'],
 				'products' => $items,
-				'shipping' => $order->total_shipping == 0 ? '0' : number_format($order->total_shipping, 2),
-				'price' => number_format($order->total_paid, 2, '.', ''),
+				'shipping' => $order->total_shipping_tax_incl == 0 ? '0' : number_format($order->total_shipping_tax_incl, 2, '.', ''),
+				'price' => number_format($order->total_paid_tax_incl, 2, '.', ''),
 				// 'visitor_key' => (string)$this->getVisitorKeyByCartId($_COOKIE['vk']),
 				'coupon' => $order->gift,
 			);
@@ -1707,8 +1707,8 @@ class AdminCustomClientifyEndPoint
 				'store_url' => $url_base,
 				'currency' => $currency['iso_code'],
 				'products' => $items,
-				'shipping' => $order->total_shipping == 0 ? '0' : number_format($order->total_shipping, 2, '.', ''),
-				'price' => number_format($order->total_paid, 2, '.', ''),
+				'shipping' => $order->total_shipping_tax_incl == 0 ? '0' : number_format($order->total_shipping_tax_incl, 2, '.', ''),
+				'price' => number_format($order->total_paid_tax_incl, 2, '.', ''),
 				// 'visitor_key' => (string)$this->getVisitorKeyByCartId($_COOKIE['vk']),
 				'coupon' => $order->gift,
 			);
