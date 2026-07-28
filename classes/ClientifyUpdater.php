@@ -6,7 +6,7 @@ if (!defined('_PS_VERSION_')) {
 
 class ClientifyUpdater
 {
-    const GITHUB_REPO = 'ClientifySL/clientify-addons-prestashop';
+    const GITHUB_REPO = 'emersonaly/prestashop-clientify'; // TODO: cambiar a ClientifySL/clientify-addons-prestashop
     const GITHUB_API  = 'https://api.github.com/repos/' . self::GITHUB_REPO . '/releases/latest';
     const CACHE_KEY   = 'CLIENTIFY_UPDATE_CACHE';
     const CACHE_TTL   = 3600; // 1 hora
