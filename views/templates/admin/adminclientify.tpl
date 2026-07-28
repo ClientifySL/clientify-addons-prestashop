@@ -35,15 +35,22 @@
 		{l s='Descargando e instalando actualización, por favor espera...' mod='clientify'}
 	</div>
 	<div id="clientify-update-result" style="display:none;"></div>
-	<style>@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style>
+	{literal}<style>@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style>{/literal}
+	<script>
+	var clientifyUpdateUrl = '{$clientifyController|escape:'javascript':'UTF-8'}&action=runUpdate&ajax=1';
+	var clientifyUpdateMsgConfirm = '{l s='¿Deseas actualizar el módulo Clientify ahora? El sitio seguirá funcionando durante la actualización.' mod='clientify'}';
+	var clientifyUpdateMsgReload  = '{l s='Recargar página' mod='clientify'}';
+	var clientifyUpdateMsgError   = '{l s='Error de conexión al intentar actualizar.' mod='clientify'}';
+	</script>
+	{literal}
 	<script>
 	(function(){
 		document.getElementById('clientify-btn-update').addEventListener('click', function(){
-			if (!confirm('{l s='¿Deseas actualizar el módulo Clientify ahora? El sitio seguirá funcionando durante la actualización.' mod='clientify'}')) return;
+			if (!confirm(clientifyUpdateMsgConfirm)) return;
 			document.getElementById('clientify-update-banner').style.display   = 'none';
 			document.getElementById('clientify-update-progress').style.display = 'block';
 
-			fetch('{$clientifyController|escape:'javascript':'UTF-8'}&action=runUpdate&ajax=1', {
+			fetch(clientifyUpdateUrl, {
 				method: 'POST',
 				headers: {'Content-Type': 'application/x-www-form-urlencoded'},
 			})
@@ -53,7 +60,7 @@
 				var el = document.getElementById('clientify-update-result');
 				if (data.success) {
 					el.className = 'alert alert-success';
-					el.innerHTML = '<i class="material-icons" style="vertical-align:middle;">check_circle</i> ' + data.message + ' <a href="" style="margin-left:8px;">{l s='Recargar página' mod='clientify'}</a>';
+					el.innerHTML = '<i class="material-icons" style="vertical-align:middle;">check_circle</i> ' + data.message + ' <a href="" style="margin-left:8px;">' + clientifyUpdateMsgReload + '</a>';
 				} else {
 					el.className = 'alert alert-danger';
 					el.innerHTML = '<i class="material-icons" style="vertical-align:middle;">error</i> ' + data.message;
@@ -64,12 +71,13 @@
 				document.getElementById('clientify-update-progress').style.display = 'none';
 				var el = document.getElementById('clientify-update-result');
 				el.className = 'alert alert-danger';
-				el.innerHTML = '{l s='Error de conexión al intentar actualizar.' mod='clientify'}';
+				el.innerHTML = clientifyUpdateMsgError;
 				el.style.display = 'block';
 			});
 		});
 	})();
 	</script>
+	{/literal}
 	{/if}
 
 	<header class="clientify_header">
