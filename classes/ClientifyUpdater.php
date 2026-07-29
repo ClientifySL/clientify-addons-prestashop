@@ -161,8 +161,12 @@ class ClientifyUpdater
         }
 
         // Actualizar versión en ps_module para que el gestor de módulos la refleje
-        Db::getInstance()->execute(
+        $versionUpdated = Db::getInstance()->execute(
             "UPDATE `" . _DB_PREFIX_ . "module` SET `version` = '" . pSQL($release['version']) . "' WHERE `name` = 'clientify'"
+        );
+        AdminClientifyController::addLog(
+            $versionUpdated ? 'success' : 'error',
+            'DB version update to ' . $release['version'] . ': ' . ($versionUpdated ? 'OK' : Db::getInstance()->getMsgError())
         );
 
         // Limpiar tmp y caché
