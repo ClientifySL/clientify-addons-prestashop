@@ -300,36 +300,52 @@ class Clientify extends Module
         </style>';
 
         // Badge de actualización en el gestor de módulos
-        $controller = Tools::getValue('controller');
-        if ($controller === 'AdminModulesSf' || $controller === 'AdminModules' || $controller === 'AdminModulesManage') {
-            try {
-                $release = ClientifyUpdater::getLatestRelease();
-            } catch (Exception $e) {
-                $release = null;
-            }
-            if ($release && version_compare($release['version'], $this->version, '>')) {
-                $configUrl    = $this->context->link->getAdminLink('AdminClientify');
-                $latestVersion = $release['version'];
-                $output .= '<script>
-                document.addEventListener("DOMContentLoaded", function() {
-                    var cards = document.querySelectorAll("[data-tech-name=\"clientify\"], [data-name=\"clientify\"]");
-                    cards.forEach(function(card) {
-                        if (card.querySelector(".clientify-update-badge")) return;
-                        var badge = document.createElement("span");
-                        badge.className = "clientify-update-badge label label-warning module-update-warning";
-                        badge.style.cssText = "margin-left:6px;font-size:11px;cursor:pointer;";
-                        badge.title = "Actualizar a v' . $latestVersion . '";
-                        badge.innerHTML = "&#8593; v' . $latestVersion . ' disponible";
-                        badge.addEventListener("click", function(e) {
-                            e.stopPropagation();
-                            window.location = "' . $configUrl . '";
-                        });
-                        var nameEl = card.querySelector(".module-name, h3, .module-item-heading");
-                        if (nameEl) nameEl.appendChild(badge);
-                    });
+        try {
+            $release = ClientifyUpdater::getLatestRelease();
+        } catch (Exception $e) {
+            $release = null;
+        }
+        if ($release && version_compare($release['version'], $this->version, '>')) {
+            $configUrl     = $this->context->link->getAdminLink('AdminClientify');
+            $latestVersion = $release['version'];
+            $output .= '<script>
+            (function() {
+                function injectBadge() {
+                    var selectors = [
+                        "[data-tech-name=\"clientify\"]",
+                        "[data-name=\"clientify\"]",
+                        ".module-item-list[data-tech-name=\"clientify\"]",
+                        ".module-item[data-tech-name=\"clientify\"]"
+                    ];
+                    var card = null;
+                    for (var i = 0; i < selectors.length; i++) {
+                        card = document.querySelector(selectors[i]);
+                        if (card) break;
+                    }
+                    if (!card) return false;
+                    if (card.querySelector(".clientify-update-badge")) return true;
+                    var badge = document.createElement("a");
+                    badge.className = "clientify-update-badge";
+                    badge.href = "' . $configUrl . '";
+                    badge.style.cssText = "display:inline-block;margin-left:8px;padding:2px 8px;background:#FFA500;color:#fff;border-radius:10px;font-size:11px;font-weight:600;text-decoration:none;vertical-align:middle;";
+                    badge.innerHTML = "&#8593; v' . $latestVersion . ' disponible";
+                    var nameEl = card.querySelector(".module-name, .module-tech-name, h3, .module-item-heading, strong");
+                    if (nameEl) {
+                        nameEl.parentNode.insertBefore(badge, nameEl.nextSibling);
+                    } else {
+                        card.prepend(badge);
+                    }
+                    return true;
+                }
+                // MutationObserver para Vue.js que renderiza después del DOMContentLoaded
+                var observer = new MutationObserver(function() {
+                    if (injectBadge()) observer.disconnect();
                 });
-                </script>';
-            }
+                observer.observe(document.body, { childList: true, subtree: true });
+                // Intento directo por si el DOM ya está listo
+                document.addEventListener("DOMContentLoaded", function() { injectBadge(); });
+            })();
+            </script>';
         }
 
         return $output;
