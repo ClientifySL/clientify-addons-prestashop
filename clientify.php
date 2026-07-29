@@ -312,6 +312,8 @@ class Clientify extends Module
             document.addEventListener("DOMContentLoaded", function() {
                 var card = document.querySelector(".module-item[data-tech-name=\"clientify\"]");
                 if (!card || card.querySelector(".clientify-update-badge")) return;
+
+                // Badge junto al nombre
                 var badge = document.createElement("a");
                 badge.className = "clientify-update-badge";
                 badge.href = "' . $configUrl . '";
@@ -319,6 +321,17 @@ class Clientify extends Module
                 badge.innerHTML = "&#8593; v' . $latestVersion . ' disponible";
                 var nameEl = card.querySelector(".module-name-list");
                 if (nameEl) nameEl.appendChild(badge);
+
+                // Botón "Actualizar" en las acciones del card
+                var actions = card.querySelector(".btn-group.module-actions");
+                if (actions && !actions.querySelector(".clientify-btn-update")) {
+                    var btn = document.createElement("a");
+                    btn.className = "btn btn-primary btn-sm clientify-btn-update";
+                    btn.href = "' . $configUrl . '";
+                    btn.style.cssText = "margin-right:4px;";
+                    btn.innerHTML = "&#8593; Actualizar";
+                    actions.insertBefore(btn, actions.firstChild);
+                }
             });
             </script>';
         }
