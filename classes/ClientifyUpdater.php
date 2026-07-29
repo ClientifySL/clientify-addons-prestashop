@@ -153,6 +153,13 @@ class ClientifyUpdater
         $moduleDir = _PS_MODULE_DIR_ . 'clientify/';
         self::copyDirectory($moduleSource, $moduleDir);
 
+        // Invalidar OPcache para que PHP lea los archivos nuevos
+        if (function_exists('opcache_reset')) {
+            opcache_reset();
+        } elseif (function_exists('opcache_invalidate')) {
+            opcache_invalidate($moduleDir . 'clientify.php', true);
+        }
+
         // Actualizar versión en ps_module para que el gestor de módulos la refleje
         Db::getInstance()->execute(
             "UPDATE `" . _DB_PREFIX_ . "module` SET `version` = '" . pSQL($release['version']) . "' WHERE `name` = 'clientify'"
