@@ -154,9 +154,9 @@ class ClientifyUpdater
         self::copyDirectory($moduleSource, $moduleDir);
 
         // Actualizar versión en ps_module para que el gestor de módulos la refleje
-        Db::getInstance()->update('module', [
-            'version' => pSQL($release['version']),
-        ], "`name` = 'clientify'");
+        Db::getInstance()->execute(
+            "UPDATE `" . _DB_PREFIX_ . "module` SET `version` = '" . pSQL($release['version']) . "' WHERE `name` = 'clientify'"
+        );
 
         // Limpiar tmp y caché
         self::cleanTmp($tmpDir);
