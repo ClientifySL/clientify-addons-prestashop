@@ -58,6 +58,7 @@ if (!$tabla) {
 
 
 include_once(__DIR__ . '/controllers/admin/Api.php');
+include_once(__DIR__ . '/classes/ClientifyUpdater.php');
 
 class Clientify extends Module
 {
@@ -67,7 +68,7 @@ class Clientify extends Module
     {
         $this->name = 'clientify';
         $this->tab = 'administration';
-        $this->version = '1.0.0';
+        $this->version = '1.0.5';
         $this->author = 'Clientify SL';
         $this->need_instance = 1;
 
@@ -112,7 +113,8 @@ class Clientify extends Module
             $this->registerHook('header') &&
             $this->registerHook('backOfficeHeader') && $this->registerHook('actionObjectCustomerAddAfter') && $this->registerHook('actionOrderStatusPostUpdate') &&
             $this->registerHook('displayfooter') && $this->installDB() && $this->installModuleTab() &&
-            $this->registerHook('actionObjectProductAddAfter') && $this->registerHook('actionObjectProductUpdateAfter') && $this->registerHook('ModuleRoutes');
+            $this->registerHook('actionObjectProductAddAfter') && $this->registerHook('actionObjectProductUpdateAfter') && $this->registerHook('ModuleRoutes') &&
+            $this->registerHook('displayBackOfficeTop');
     }
 
     public function uninstall()
@@ -164,22 +166,41 @@ class Clientify extends Module
      */
     public function getContent()
     {
-        // /**
-        //  * If values have been submitted in the form, process.
-        //  */
         if (((bool) Tools::isSubmit('submitClientifyModule')) == true) {
             $this->postProcess();
         }
 
-        //$this->context->smarty->assign('module_dir', $this->_path);
-
-        //$output = $this->context->smarty->fetch($this->local_path . 'views/templates/admin/adminclientify.tpl');
-
         if (Tools::getValue('configure') == $this->name) {
             Tools::redirectAdmin(Context::getContext()->link->getAdminLink('AdminClientify') . '&token=' . Tools::getAdminTokenLite('AdminClientify'));
         }
+    }
 
-        //return $output . $this->renderForm();
+    public function hookDisplayBackOfficeTop()
+    {
+        try {
+            $release = ClientifyUpdater::getLatestRelease();
+        } catch (Exception $e) {
+            return '';
+        }
+
+        if (!$release || !version_compare($release['version'], $this->version, '>')) {
+            return '';
+        }
+
+        $configUrl = Context::getContext()->link->getAdminLink('AdminClientify');
+        return '
+        <div class="bootstrap" style="margin:8px 16px 0;">
+            <div class="alert alert-warning" style="margin-bottom:0;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                <span>
+                    <strong>Clientify:</strong> '
+                    . $this->l('Nueva versión disponible') . ' <strong>v' . $release['version'] . '</strong>'
+                    . ' (' . $this->l('Instalada') . ': v' . $this->version . ')
+                </span>
+                <a href="' . $configUrl . '" class="btn btn-primary btn-sm">'
+                    . $this->l('Actualizar ahora') .
+                '</a>
+            </div>
+        </div>';
     }
 
     /**
