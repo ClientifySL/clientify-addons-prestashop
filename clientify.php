@@ -113,8 +113,7 @@ class Clientify extends Module
             $this->registerHook('header') &&
             $this->registerHook('backOfficeHeader') && $this->registerHook('actionObjectCustomerAddAfter') && $this->registerHook('actionOrderStatusPostUpdate') &&
             $this->registerHook('displayfooter') && $this->installDB() && $this->installModuleTab() &&
-            $this->registerHook('actionObjectProductAddAfter') && $this->registerHook('actionObjectProductUpdateAfter') && $this->registerHook('ModuleRoutes') &&
-            $this->registerHook('displayBackOfficeTop');
+            $this->registerHook('actionObjectProductAddAfter') && $this->registerHook('actionObjectProductUpdateAfter') && $this->registerHook('ModuleRoutes');
     }
 
     public function uninstall()
@@ -175,33 +174,6 @@ class Clientify extends Module
         }
     }
 
-    public function hookDisplayBackOfficeTop()
-    {
-        try {
-            $release = ClientifyUpdater::getLatestRelease();
-        } catch (Exception $e) {
-            return '';
-        }
-
-        if (!$release || !version_compare($release['version'], $this->version, '>')) {
-            return '';
-        }
-
-        $configUrl = Context::getContext()->link->getAdminLink('AdminClientify');
-        return '
-        <div class="bootstrap" style="margin:8px 16px 0;">
-            <div class="alert alert-warning" style="margin-bottom:0;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-                <span>
-                    <strong>Clientify:</strong> '
-                    . $this->l('Nueva versión disponible') . ' <strong>v' . $release['version'] . '</strong>'
-                    . ' (' . $this->l('Instalada') . ': v' . $this->version . ')
-                </span>
-                <a href="' . $configUrl . '" class="btn btn-primary btn-sm">'
-                    . $this->l('Actualizar ahora') .
-                '</a>
-            </div>
-        </div>';
-    }
 
     /**
      * Create the form that will be displayed in the configuration of your module.
@@ -315,9 +287,8 @@ class Clientify extends Module
             $this->context->controller->addCSS($this->_path . 'views/css/back.css');
         }
 
-        // Inyectar CSS del ícono del menú lateral en TODAS las páginas del admin
         $logoUrl = $this->getPathUri() . 'views/img/logo.png';
-        return '<style>
+        $output = '<style>
             #subtab-AdminClientify .material-icons:first-of-type {
                 font-size: 0 !important;
                 background: url("' . $logoUrl . '") center / contain no-repeat;
@@ -327,6 +298,41 @@ class Clientify extends Module
                 vertical-align: middle;
             }
         </style>';
+
+        // Badge de actualización en el gestor de módulos
+        $controller = Tools::getValue('controller');
+        if ($controller === 'AdminModulesSf' || $controller === 'AdminModules' || $controller === 'AdminModulesManage') {
+            try {
+                $release = ClientifyUpdater::getLatestRelease();
+            } catch (Exception $e) {
+                $release = null;
+            }
+            if ($release && version_compare($release['version'], $this->version, '>')) {
+                $configUrl    = $this->context->link->getAdminLink('AdminClientify');
+                $latestVersion = $release['version'];
+                $output .= '<script>
+                document.addEventListener("DOMContentLoaded", function() {
+                    var cards = document.querySelectorAll("[data-tech-name=\"clientify\"], [data-name=\"clientify\"]");
+                    cards.forEach(function(card) {
+                        if (card.querySelector(".clientify-update-badge")) return;
+                        var badge = document.createElement("span");
+                        badge.className = "clientify-update-badge label label-warning module-update-warning";
+                        badge.style.cssText = "margin-left:6px;font-size:11px;cursor:pointer;";
+                        badge.title = "Actualizar a v' . $latestVersion . '";
+                        badge.innerHTML = "&#8593; v' . $latestVersion . ' disponible";
+                        badge.addEventListener("click", function(e) {
+                            e.stopPropagation();
+                            window.location = "' . $configUrl . '";
+                        });
+                        var nameEl = card.querySelector(".module-name, h3, .module-item-heading");
+                        if (nameEl) nameEl.appendChild(badge);
+                    });
+                });
+                </script>';
+            }
+        }
+
+        return $output;
     }
     // /**
     //  * Add the CSS & JavaScript files you want to be added on the FO.
