@@ -20,9 +20,10 @@ jobs:
         id: get_version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: Inject version into clientify.php
+      - name: Inject version into clientify.php and config.xml
         run: |
           sed -i "s/\\\$this->version = '[^']*';/\$this->version = '${{ steps.get_version.outputs.VERSION }}';/" clientify.php
+          sed -i "s|<version><!\[CDATA\[[^]]*\]\]></version>|<version><![CDATA[${{ steps.get_version.outputs.VERSION }}]]></version>|" config.xml
 
       - name: Build module ZIP
         run: |
