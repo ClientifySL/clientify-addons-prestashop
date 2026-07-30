@@ -169,10 +169,11 @@ class ClientifyUpdater
             'DB version update to ' . $release['version'] . ': ' . ($versionUpdated ? 'OK' : Db::getInstance()->getMsgError())
         );
 
-        // Limpiar tmp y caché
+        // Limpiar tmp, caché del updater, Smarty y caché de Symfony/PS
         self::cleanTmp($tmpDir);
         Configuration::deleteByName(self::CACHE_KEY);
         Tools::clearSmartyCache();
+        self::clearPsCache();
 
         return ['success' => true, 'message' => 'Módulo actualizado a la versión ' . $release['version'] . ' correctamente.'];
     }
@@ -196,6 +197,30 @@ class ClientifyUpdater
             }
         }
         closedir($dir);
+    }
+
+    private static function clearPsCache()
+    {
+        // Caché de Symfony (PS 8+)
+        $cacheDirs = [
+            _PS_ROOT_DIR_ . '/var/cache/prod/',
+            _PS_ROOT_DIR_ . '/var/cache/dev/',
+        ];
+        foreach ($cacheDirs as $dir) {
+            if (is_dir($dir)) {
+                $files = new RecursiveIteratorIterator(
+                    new RecursiveDirectoryIterator($dir, RecursiveDirectoryIterator::SKIP_DOTS),
+                    RecursiveIteratorIterator::CHILD_FIRST
+                );
+                foreach ($files as $file) {
+                    try {
+                        $file->isDir() ? rmdir($file->getRealPath()) : unlink($file->getRealPath());
+                    } catch (Exception $e) {
+                        // ignorar errores de permisos en archivos individuales
+                    }
+                }
+            }
+        }
     }
 
     private static function cleanTmp($dir)
