@@ -2,7 +2,7 @@
 <module>
 	<name>clientify</name>
 	<displayName><![CDATA[Clientify Prestashop]]></displayName>
-	<version><![CDATA[1.1.7]]></version>
+	<version><![CDATA[1.0.0]]></version>
 	<description><![CDATA[clientify prestashop ]]></description>
 	<author><![CDATA[clientify]]></author>
 	<tab><![CDATA[administration]]></tab>
