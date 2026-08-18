@@ -72,6 +72,74 @@ class AdminCustomClientifyEndPoint
 		Db::getInstance()->update('configuration_clientify', $data);
 		return $new_key;
 	}
+
+	/**
+	 * CTF-1875: estado del módulo/hooks para el endpoint "status" que consume
+	 * Django (ecommerce/stores.py::Prestashop.plugin_status ->
+	 * ecommerce/utils.py::check_plugin_connection). Antes no existía ningún
+	 * front controller para "status", así que Django recibía un 404/HTML en
+	 * vez de JSON y "connection_status" reportaba error_type=error.
+	 *
+	 * Los nombres de hook deben coincidir 1:1 con los que registra
+	 * clientify.php::install().
+	 */
+	public function get_plugin_status($params)
+	{
+		$id_shop = (int) $this->data_config['id_shop'];
+		$module_row = Db::getInstance()->getRow(
+			"SELECT id_module, active FROM " . _DB_PREFIX_ . "module WHERE name = 'clientify'"
+		);
+
+		$expected_hooks = array(
+			'header',
+			'backOfficeHeader',
+			'actionCustomerAccountAdd',
+			'actionOrderStatusPostUpdate',
+			'displayfooter',
+			'actionObjectProductAddAfter',
+			'actionObjectProductUpdateAfter',
+			'ModuleRoutes',
+		);
+
+		$hooks = array();
+		foreach ($expected_hooks as $hook_name) {
+			$hooks[$hook_name] = false;
+		}
+
+		if ($module_row) {
+			$registered = Db::getInstance()->executeS(
+				"SELECT h.name FROM " . _DB_PREFIX_ . "hook_module hm
+				 INNER JOIN " . _DB_PREFIX_ . "hook h ON h.id_hook = hm.id_hook
+				 WHERE hm.id_module = " . (int) $module_row['id_module'] . "
+				 AND (hm.id_shop = " . $id_shop . " OR hm.id_shop IS NULL)"
+			);
+
+			if (is_array($registered)) {
+				foreach ($registered as $row) {
+					if (array_key_exists($row['name'], $hooks)) {
+						$hooks[$row['name']] = true;
+					}
+				}
+			}
+		}
+
+		return array(
+			'module_active' => $module_row ? (bool) $module_row['active'] : false,
+			'module_version' => $this->module_version_or_default(),
+			'shop_name' => $this->getShopName($id_shop),
+			'store_key_configured' => !empty($this->data_config['clientify_store_key']),
+			'hooks' => $hooks,
+		);
+	}
+
+	private function module_version_or_default()
+	{
+		$version = Db::getInstance()->getValue(
+			"SELECT version FROM " . _DB_PREFIX_ . "module WHERE name = 'clientify'"
+		);
+		return $version ?: '1.0.0';
+	}
+
 	/* change status pluging conneted or disconnect passes 0 / 1 */
 	public function plugin_handling($params)
 	{
