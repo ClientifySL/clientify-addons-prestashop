@@ -111,7 +111,7 @@ class Clientify extends Module
 
         return parent::install() &&
             $this->registerHook('header') &&
-            $this->registerHook('backOfficeHeader') && $this->registerHook('actionObjectCustomerAddAfter') && $this->registerHook('actionOrderStatusPostUpdate') &&
+            $this->registerHook('backOfficeHeader') && $this->registerHook('actionCustomerAccountAdd') && $this->registerHook('actionOrderStatusPostUpdate') &&
             $this->registerHook('displayfooter') && $this->installDB() && $this->installModuleTab() &&
             $this->registerHook('actionObjectProductAddAfter') && $this->registerHook('actionObjectProductUpdateAfter') && $this->registerHook('ModuleRoutes');
     }
@@ -510,16 +510,16 @@ class Clientify extends Module
     }
 
 
-    public function hookactionObjectCustomerAddAfter($params)
+    public function hookActionCustomerAccountAdd($params)
     {
-        if (!isset($params['object']) || empty($params['object']->id)) {
+        if (!isset($params['newCustomer']) || empty($params['newCustomer']->id)) {
             return;
         }
 
         include_once(__DIR__ . '/controllers/admin/controller_clientify_plugin_core.php');
         $hook_customer = new AdminCustomClientifyEndPoint();
 
-        $customer_id = (int) $params['object']->id;
+        $customer_id = (int) $params['newCustomer']->id;
         $id_shop = Context::getContext()->shop->id;
 
         if (Shop::isFeatureActive() == true && $id_shop == $hook_customer->data_config['id_shop'] && $hook_customer->data_config['clientify_module_status'] == 1) {

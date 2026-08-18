@@ -129,6 +129,15 @@ class AdminCustomClientifyEndPoint
 		}
 	}
 
+	private function has_gdpr_consent($id_customer)
+	{
+		$result = Db::getInstance()->getValue(
+			'SELECT id_gdpr_log FROM ' . _DB_PREFIX_ . 'psgdpr_log WHERE id_customer = ' . (int) $id_customer
+		);
+
+		return !empty($result);
+	}
+
 	public function get_contact($user_id)
 	{
 		$context = Context::getContext();
@@ -147,8 +156,8 @@ class AdminCustomClientifyEndPoint
 				'user_registered' => $user->date_add,
 				'custom_fields' => [],
 				'company' => empty($address->company) ? '' : $address->company,
-				'identification' => $address->vat_number,
-				'gdpr_accept' => $user->newsletter,
+				'identification' => empty($address->dni) ? $address->vat_number : $address->dni,
+				'gdpr_accept' => $this->has_gdpr_consent($user_id),
 				'tags' => array(
 					'prestashop',
 					$site_name,
@@ -1011,9 +1020,9 @@ class AdminCustomClientifyEndPoint
 					'contact_source' => $site_name,
 					'user_registered' => $user->date_add,
 					'company' => empty($address->company) ? null : $address->company,
-					'identification' => $address->vat_number,
+					'identification' => empty($address->dni) ? $address->vat_number : $address->dni,
 					'custom_fields' => [],
-					'gdpr_accept' => $user->newsletter,
+					'gdpr_accept' => $this->has_gdpr_consent($user_id),
 					'tags' => array(
 						'prestashop',
 						$site_name,
@@ -1768,9 +1777,9 @@ class AdminCustomClientifyEndPoint
 					'contact_source' => $site_name,
 					'user_registered' => $user->date_add,
 					'company' => empty($address->company) ? null : $address->company,
-					'identification' => $address->vat_number,
+					'identification' => empty($address->dni) ? $address->vat_number : $address->dni,
 					'custom_fields' => [],
-					'gdpr_accept' => $user->newsletter,
+					'gdpr_accept' => $this->has_gdpr_consent($user_id),
 					'store_url' => $store_url,
 					'tags' => array(
 						'prestashop',
