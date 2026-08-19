@@ -83,7 +83,7 @@
 
 .clientify_conten {
     background-color: #fff;
-    margin: 50px;
+    margin: 0;
     padding: 0;
     border: 0;
     font: inherit;
@@ -92,18 +92,22 @@
 }
 
 .clientify_conten .clientify_header,
-.clientify_conten form,
 .clientify_general {
-    padding: 2em 10%;
+    padding: 2% 5%;
 }
 
-.clientify_general {
-    width: 100%;
+.clientify_conten form {
+    padding: 0;
+}
 
+.clientify_general,
+.general {
+    width: 100%;
+    padding: 0 !important;
 }
 
 .clientify_header {
-    background-color: #4fafde;
+    background-color: #0d6efd;
     color: white;
 }
 
@@ -122,12 +126,12 @@
     font-weight: 300;
 }
 
-.clientify_header p {
+.clientify_header p {    
     font-weight: 400;
-    font-size: 16px;
-    color: rgba(255, 255, 255, 0.clientify_9);
-    letter-spacing: 0.clientify_05em;
-    margin-bottom: 10px;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.9);
+    letter-spacing: 0.05em;
+    margin-bottom: 0px;
 }
 
 .clientify_header h3,
@@ -154,9 +158,8 @@
 }
 
 .clientify_form-group-prestashop {
-    max-width: 660px;
+    max-width: 700px;
     margin: 0 auto;
-    max-width: 660px;
 }
 
 h2.clientify_heading {
@@ -168,11 +171,12 @@ h2.clientify_heading {
     border-bottom: 1px solid #506982;
     padding-bottom: 3px;
     margin-bottom: 20px;
-    width: 70%;
+    width: fit-content;
+    min-width: 70%;
 }
 
 .clientify_logo-clientify-responsive {
-    width: 30%;
+    width: 15%;
     height: auto;
 }
 
@@ -222,24 +226,23 @@ h2.clientify_heading {
 .clientify_controls button,
 .clientify_controls select,
 .clientify_controls input[readonly] {
-    padding: 20px 0 13px 1%;
-    height: 24px;
+    padding: 12px 12px;
+    height: auto;
     font-size: 14px;
     border: 1px solid #c6c6c6;
     width: 70%;
     margin-bottom: 18px;
     color: #888;
     font-family: "Lato", "sans-serif";
-    font-size: 16px;
     font-weight: 300;
     background-color: #fff !important;
-    -moz-border-radius: 2px;
-    -webkit-border-radius: 2px;
-    border-radius: 2px;
-    -moz-transition: all 0.clientify_3s;
-    -o-transition: all 0.clientify_3s;
-    -webkit-transition: all 0.clientify_3s;
-    transition: all 0.clientify_3s;
+    -moz-border-radius: 4px;
+    -webkit-border-radius: 4px;
+    border-radius: 4px;
+    -moz-transition: all 0.3s;
+    -o-transition: all 0.3s;
+    -webkit-transition: all 0.3s;
+    transition: all 0.3s;
 }
 
 .clientify_controls input[type="text"]:focus,
@@ -296,15 +299,17 @@ h2.clientify_heading {
     transition: color 0.clientify_3s, top 0.clientify_3s, background-color 0.clientify_8s;
 }
 
-.clientify_active_label {
-
-}
 .clientify_controls label.clientify_active {
-    top: -11px;
+    /* Elevar la etiqueta flotante y evitar solapamientos / saltos de línea */
+    top: -10px;
+    left: 10px;
+    padding: 0 6px;
+    font-size: 14px;
     color: #555;
     background-color: white;
     text-align: left;
-    width: 120px;
+    width: auto;
+    white-space: nowrap;
 }
 
 .clientify_controls textarea {
@@ -314,19 +319,19 @@ h2.clientify_heading {
 
 .clientify_controls button {
     cursor: pointer;
-    background-color: #4fafde;
+    background-color: #0d6efd;
     border: none;
     color: #fff;
     padding: 12px 0;
 }
 
 .clientify_controls button:hover {
-    background-color: #7abee0;
+    background-color: #0b5ed7;
 }
 
 .clientify_button.clientify_custom-class {
     cursor: pointer;
-    background-color: #4fafde;
+    background-color: #0d6efd;
     border: none;
     color: #fff;
     padding: 12px 0;
@@ -335,14 +340,14 @@ h2.clientify_heading {
 }
 
 .clientify_button.clientify_custom-class:hover {
-    background-color: #7abee0;
-    color: #555;
+    background-color: #0b5ed7;
+    color: #fff;
 }
 
 
 .clientify_button.clientify_custom-class-utils {
     cursor: pointer;
-    background-color: #4fafde;
+    background-color: #0d6efd;
     border: none;
     color: #fff;
     padding: 12px 0;
@@ -351,40 +356,47 @@ h2.clientify_heading {
 }
 
 .clientify_button.clientify_custom-class-utils:hover {
-    background-color: #7abee0;
-    color: #555;
+    background-color: #0b5ed7;
+    color: #fff;
 }
 
 .clientify_connect-class {
     cursor: pointer;
-    background-color: #4fafde;
+    background-color: #0d6efd;
     border: none;
+    border-radius: 4px;
     color: #fff;
-    padding: 12px 0;
-    width: 35%;
-    font-size: large;
+    padding: 10px 24px;
+    display: inline-block;
+    min-width: 140px;
+    font-size: 16px;
+    font-weight: 500;
+    margin: 0 6px;
 }
 
 .clientify_connect-class:hover {
-    background-color: #7abee0;
-    color: #555;
+    background-color: #0b5ed7;
+    color: #fff;
 }
 
 .clientify_disconnect-class {
     cursor: pointer;
-    background-color: #db4040;
+    background-color: #dc3545;
     border: none;
+    border-radius: 4px;
     color: #fff;
-    padding: 12px 0;
-    width: 35%;
-    font-size: large;
+    padding: 10px 24px;
+    display: inline-block;
+    min-width: 140px;
+    font-size: 16px;
+    font-weight: 500;
+    margin: 0 6px;
 }
 
 .clientify_disconnect-class:hover {
     cursor: pointer;
-    background-color: #ea5c5c;
+    background-color: #bb2d3b;
     color: #fff;
-
 }
 
 .clientify_sub_version {
@@ -467,7 +479,7 @@ h2.clientify_heading {
 /* Estilos para la etiqueta select */
 .clientify_modal-body select {
     width: 80%;
-    padding: 10px;
+    /* padding: 10px; */
     border: 1px solid #ccc;
     border-radius: 5px;
     font-size: 16px;
@@ -500,12 +512,12 @@ h2.clientify_heading {
 }
 
 .clientify_btn.btn-primary {
-    background-color: #4fafde;
+    background-color: #0d6efd;
     color: #fff;
 }
 
 .clientify_btn.btn-primary:hover {
-    background-color: #0174ad;
+    background-color: #0b5ed7;
     color: #fff;
 }
 
@@ -514,6 +526,224 @@ h2.clientify_heading {
     background-color: #eee;
     color: #999;
     cursor: not-allowed;
+}
+
+.clientify-button-wrapper {
+    max-width: 700px;
+    margin: 0 auto !important;
+    padding: 16px 80px !important;
+}
+
+/* ===== NAV TABS ===== */
+.clientify_nav-tab-wrapper {
+    border-bottom: 1px solid #c3c4c7;
+    margin: 0;
+    padding: 9px 24px 0;
+    display: flex;
+    gap: 4px;
+    background: #f0f0f1;
+}
+
+.clientify_nav-tab {
+    border: 1px solid #c3c4c7;
+    border-bottom: none;
+    border-radius: 3px 3px 0 0;
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    background: #dcdcde;
+    color: #052451 !important;
+    text-decoration: none !important;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: background 0.15s, color 0.15s;
+}
+
+.clientify_nav-tab:hover {
+    background: #e8e8e8;
+    color: #1d2327;
+    text-decoration: none;
+}
+
+.clientify_nav-tab-active,
+.clientify_nav-tab-active:hover,
+.clientify_nav-tab-active:focus {
+    background: #fff;
+    color: #0d6efd;
+    border-bottom: 1px solid #fff;
+    margin-bottom: -1px;
+    text-decoration: none !important
+}
+
+/* ===== BODY ===== */
+.clientify_body {
+    background: #fff;
+    padding: 24px;
+}
+
+/* ===== LOGS ===== */
+.clientify_logs-wrapper {
+    max-width: 860px;
+    margin: 0 auto;
+}
+
+.clientify_logs-header {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid #506982;
+    padding-bottom: 3px;
+}
+
+.clientify_logs-header .clientify_heading {
+    margin-bottom: 0;
+    border-bottom: none;
+    min-width: unset;
+    width: auto;
+    padding-bottom: 0;
+}
+
+.clientify_logs-hint {
+    font-size: 12px;
+    color: #888;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.clientify_logs-table-wrap {
+    overflow-x: auto;
+    border-radius: 4px;
+    border: 1px solid #e0e0e0;
+}
+
+.clientify_logs-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.clientify_logs-table thead tr {
+    background: #506982;
+    color: #fff;
+}
+
+.clientify_logs-table thead th {
+    padding: 10px 14px;
+    text-align: left;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+}
+
+.clientify_logs-table tbody tr {
+    border-bottom: 1px solid #f0f0f0;
+    transition: background 0.1s;
+}
+
+.clientify_logs-table tbody tr:last-child {
+    border-bottom: none;
+}
+
+.clientify_logs-table tbody tr:hover {
+    background: #f8f9fa;
+}
+
+.clientify_logs-table tbody tr.clientify_log-error {
+    border-left: 3px solid #dc3545;
+}
+
+.clientify_logs-table tbody tr.clientify_log-success {
+    border-left: 3px solid #28a745;
+}
+
+.clientify_logs-table tbody tr.clientify_log-warning {
+    border-left: 3px solid #ffc107;
+}
+
+.clientify_logs-table tbody tr.clientify_log-info {
+    border-left: 3px solid #17a2b8;
+}
+
+.clientify_logs-table td {
+    padding: 9px 14px;
+    vertical-align: middle;
+    color: #444;
+}
+
+.clientify_logs-table .col-date {
+    white-space: nowrap;
+    color: #777;
+    font-size: 12px;
+    width: 155px;
+}
+
+.clientify_logs-table .col-type {
+    width: 110px;
+}
+
+/* Badges */
+.clientify_badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px 3px 6px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.clientify_badge .material-icons {
+    font-size: 14px;
+}
+
+.clientify_badge-success {
+    background: #d4edda;
+    color: #155724;
+}
+
+.clientify_badge-error {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.clientify_badge-warning {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.clientify_badge-info {
+    background: #d1ecf1;
+    color: #0c5460;
+}
+
+/* Estado vacío */
+.clientify_logs-empty {
+    text-align: center;
+    padding: 50px 20px;
+    color: #999;
+}
+
+.clientify_logs-empty .material-icons {
+    font-size: 48px;
+    color: #ccc;
+    display: block;
+    margin-bottom: 12px;
+}
+
+.clientify_logs-empty p {
+    font-size: 15px;
+    font-weight: 600;
+    color: #777;
+    margin: 0 0 6px;
+}
+
+.clientify_logs-empty span {
+    font-size: 13px;
+    color: #aaa;
 }
 
 /* .clientify_close {

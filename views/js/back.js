@@ -26,12 +26,12 @@
 * to avoid any conflicts with others containers.
 */
 const module = "clientify"
-document.addEventListener('keyup', (event) => {
-    if (event.ctrlKey && event.altKey  && event.key == 'c') {
-		 $('#other_config').show(1000)
-    }
-	setTimeout(function(){ $('#other_config').hide(1000) }, 10000);
-});
+// document.addEventListener('keyup', (event) => {
+//     if (event.ctrlKey && event.altKey  && event.key == 'c') {
+// 		 $('#other_config').show(1000)
+//     }
+// 	setTimeout(function(){ $('#other_config').hide(1000) }, 10000);
+// });
 jQuery(document).ready(function () {
 	$("#CLIENTIFY_ORDER_STATUS").select2({
 		maximumSelectionLength: 5
@@ -56,39 +56,39 @@ jQuery(document).ready(function () {
 	function floatLabel(inputType){
 		$(inputType).each(function(){
 			var $this = $(this);
-			if ($this.val() != '' || $this.val() != 'blank') {
-					
+			// Si el campo ya tiene valor al cargar, marcamos el label como activo
+			if ($this.val() !== '' && $this.val() !== 'blank') {
 				$this.next().addClass("clientify_active");
-				}
-			// on focus add cladd active to label
-			$this.focus(function(){
+			}
+			// on focus add class active to label
+			$this.on('focus', function(){
 				$this.next().addClass("clientify_active");
 			});
-			//on blur check field and remove class if needed
-			$this.blur(function(){
+			// on blur check field and remove ONLY the float-label class if needed
+			$this.on('blur', function(){
 				if($this.val() === '' || $this.val() === 'blank'){
-					$this.next().removeClass();
+					$this.next().removeClass("clientify_active");
 				}
 			});
 		});
 	}
 	floatLabel(".clientify_floatLabel-prestashop");
 	// just add a class of "floatLabel to the input field!"
-	/* displays the message in the menssage div */
 	function statusMessage(message, status) {
-    	if (status == 'success') {
-      		classMessage.removeClass('clientify_bridge_error');
-    	} else {
-      		classMessage.addClass('clientify_bridge_error');
-    	}
-    	classMessage.html('<span>' + message + '</span>');
-    	classMessage.fadeIn("slow");
-    	classMessage.fadeOut(7000);
-    	var messageClear = setTimeout(function(){
-      	classMessage.html('');
-    	}, 3000);
-    	clearTimeout(messageClear);
-  	};
+		if (status === 'success') {
+			if (typeof showSuccessMessage === 'function') {
+				showSuccessMessage(message);
+			} else if (typeof $.growl !== 'undefined') {
+				$.growl.notice({ title: '', message: message });
+			}
+		} else {
+			if (typeof showErrorMessage === 'function') {
+				showErrorMessage(message);
+			} else if (typeof $.growl !== 'undefined') {
+				$.growl.error({ title: '', message: message });
+			}
+		}
+	};
 
 	connect.click(function() {
 		var btnconnect = jQuery(this);
@@ -114,6 +114,7 @@ jQuery(document).ready(function () {
 					$.ajax({
 						type: 'POST',
 						dataType: 'JSON',
+						timeout: 65000,
 						url: decodeURIComponent(clientify_adminController).replace(/&amp;/g, '&'),
 						data: {
 							ajax: true,
@@ -122,6 +123,13 @@ jQuery(document).ready(function () {
 							'order_stat': order_stat,
 							'ac_time': ac_time,
 							'id_shop':	id_shop,
+						},
+						error: function(xhr, status) {
+							var msg = status === 'timeout'
+								? 'Tiempo de espera agotado al conectar con Clientify'
+								: 'Error de conexi\u00f3n con Clientify';
+							statusMessage(msg, 'error');
+							btnconnect.removeAttr("disabled").text("Conectar").addClass('connect-class').removeClass('error');
 						},
 						success: function(response) {
 

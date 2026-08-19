@@ -1,6 +1,6 @@
 <?php
 
-class AdminClientifyClientifyModuleFrontController extends ModuleFrontController
+class ClientifyClientifyModuleFrontController extends ModuleFrontController
 {
 
     public function initContent()

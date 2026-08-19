@@ -58,6 +58,7 @@ if (!$tabla) {
 
 
 include_once(__DIR__ . '/controllers/admin/Api.php');
+include_once(__DIR__ . '/classes/ClientifyUpdater.php');
 
 class Clientify extends Module
 {
@@ -67,7 +68,7 @@ class Clientify extends Module
     {
         $this->name = 'clientify';
         $this->tab = 'administration';
-        $this->version = '0.1.1';
+        $this->version = '1.0.0';
         $this->author = 'Clientify SL';
         $this->need_instance = 1;
 
@@ -83,7 +84,8 @@ class Clientify extends Module
 
         $this->confirmUninstall = $this->l('Are you sure you want to uninstall clientify module?');
 
-        $this->ps_versions_compliancy = array('min' => '1.7', 'max' => _PS_VERSION_);
+        // Compatible PrestaShop 1.7, 8 y 9
+        $this->ps_versions_compliancy = array('min' => '1.7.0.0', 'max' => '9.9.9');
     }
 
     /**
@@ -109,10 +111,9 @@ class Clientify extends Module
 
         return parent::install() &&
             $this->registerHook('header') &&
-            $this->registerHook('backOfficeHeader') && $this->registerHook('actionObjectCustomerAddAfter') && $this->registerHook('actionOrderStatusPostUpdate') &&
-            $this->registerHook('displayfooter') && $this->registerHook('actionCartUpdateQuantityBefore') && $this->installDB() && $this->installModuleTab() &&
+            $this->registerHook('backOfficeHeader') && $this->registerHook('actionCustomerAccountAdd') && $this->registerHook('actionOrderStatusPostUpdate') &&
+            $this->registerHook('displayfooter') && $this->installDB() && $this->installModuleTab() &&
             $this->registerHook('actionObjectProductAddAfter') && $this->registerHook('actionObjectProductUpdateAfter') && $this->registerHook('ModuleRoutes');
-        //$this->registerHook('backOfficeHeader') &&
     }
 
     public function uninstall()
@@ -164,23 +165,15 @@ class Clientify extends Module
      */
     public function getContent()
     {
-        // /**
-        //  * If values have been submitted in the form, process.
-        //  */
         if (((bool) Tools::isSubmit('submitClientifyModule')) == true) {
             $this->postProcess();
         }
 
-        //$this->context->smarty->assign('module_dir', $this->_path);
-
-        //$output = $this->context->smarty->fetch($this->local_path . 'views/templates/admin/adminclientify.tpl');
-
         if (Tools::getValue('configure') == $this->name) {
             Tools::redirectAdmin(Context::getContext()->link->getAdminLink('AdminClientify') . '&token=' . Tools::getAdminTokenLite('AdminClientify'));
         }
-
-        //return $output . $this->renderForm();
     }
+
 
     /**
      * Create the form that will be displayed in the configuration of your module.
@@ -289,10 +282,61 @@ class Clientify extends Module
      */
     public function hookBackOfficeHeader()
     {
-        if (Tools::getValue('module_name') == $this->name) {
+        if (Tools::getValue('module_name') == $this->name || Tools::getValue('controller') == 'AdminClientify') {
             $this->context->controller->addJS($this->_path . 'views/js/back.js');
             $this->context->controller->addCSS($this->_path . 'views/css/back.css');
         }
+
+        $logoUrl = $this->getPathUri() . 'views/img/logo.png';
+        $output = '<style>
+            #subtab-AdminClientify .material-icons:first-of-type {
+                font-size: 0 !important;
+                background: url("' . $logoUrl . '") center / contain no-repeat;
+                width: 20px !important;
+                height: 20px !important;
+                display: inline-block !important;
+                vertical-align: middle;
+            }
+        </style>';
+
+        // Badge de actualización en el gestor de módulos
+        try {
+            $release = ClientifyUpdater::getLatestRelease();
+        } catch (Exception $e) {
+            $release = null;
+        }
+        if ($release && version_compare($release['version'], $this->version, '>')) {
+            $configUrl     = $this->context->link->getAdminLink('AdminClientify');
+            $latestVersion = $release['version'];
+            $output .= '<script>
+            document.addEventListener("DOMContentLoaded", function() {
+                var card = document.querySelector(".module-item[data-tech-name=\"clientify\"]");
+                if (!card || card.querySelector(".clientify-update-badge")) return;
+
+                // Badge junto al nombre
+                var badge = document.createElement("a");
+                badge.className = "clientify-update-badge";
+                badge.href = "' . $configUrl . '";
+                badge.style.cssText = "display:inline-block;margin-left:8px;padding:2px 8px;background:#FFA500;color:#fff;border-radius:10px;font-size:11px;font-weight:600;text-decoration:none;vertical-align:middle;white-space:nowrap;";
+                badge.innerHTML = "&#8593; v' . $latestVersion . ' disponible";
+                var nameEl = card.querySelector(".module-name-list");
+                if (nameEl) nameEl.appendChild(badge);
+
+                // Botón "Actualizar" en las acciones del card
+                var actions = card.querySelector(".btn-group.module-actions");
+                if (actions && !actions.querySelector(".clientify-btn-update")) {
+                    var btn = document.createElement("a");
+                    btn.className = "btn btn-primary btn-sm clientify-btn-update";
+                    btn.href = "' . $configUrl . '";
+                    btn.style.cssText = "margin-right:4px;";
+                    btn.innerHTML = "&#8593; Actualizar";
+                    actions.insertBefore(btn, actions.firstChild);
+                }
+            });
+            </script>';
+        }
+
+        return $output;
     }
     // /**
     //  * Add the CSS & JavaScript files you want to be added on the FO.
@@ -354,6 +398,17 @@ class Clientify extends Module
             Db::getInstance()->insert('configuration_clientify', $data);
         }
 
+        Db::getInstance()->execute(
+            'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'clientify_logs` (
+                `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+                `type` VARCHAR(20) NOT NULL DEFAULT \'info\',
+                `message` TEXT NOT NULL,
+                `created_at` DATETIME NOT NULL,
+                PRIMARY KEY (`id`),
+                KEY `idx_created_at` (`created_at`)
+            ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8;'
+        );
+
         return true;
     }
 
@@ -361,141 +416,151 @@ class Clientify extends Module
     public function hookModuleRoutes()
     {
         return [
-            'module-restapimodule-orders' => [
+            'module-clientify-orders' => [
                 'rule' => 'clientify/orders',
                 'keywords' => [],
                 'controller' => 'orders',
                 'params' => [
                     'fc' => 'module',
-                    'module' => 'clientify'
+                    'module' => 'clientify',
                 ]
             ],
-            'module-restapimodule-products' => [
+            'module-clientify-products' => [
                 'rule' => 'clientify/products',
                 'keywords' => [],
                 'controller' => 'products',
                 'params' => [
                     'fc' => 'module',
-                    'module' => 'clientify'
+                    'module' => 'clientify',
                 ]
             ],
-            'module-restapimodule-contacts' => [
+            'module-clientify-contacts' => [
                 'rule' => 'clientify/contacts',
                 'keywords' => [],
                 'controller' => 'contacts',
                 'params' => [
                     'fc' => 'module',
-                    'module' => 'clientify'
+                    'module' => 'clientify',
                 ]
             ],
-            'module-restapimodule-abandoned' => [
+            'module-clientify-abandoned' => [
                 'rule' => 'clientify/abandoned',
                 'keywords' => [],
                 'controller' => 'abandoned',
                 'params' => [
                     'fc' => 'module',
-                    'module' => 'clientify'
+                    'module' => 'clientify',
                 ]
             ],
-            'module-restapimodule-scripts' => [
+            'module-clientify-scripts' => [
                 'rule' => 'clientify/scripts',
                 'keywords' => [],
                 'controller' => 'scripts',
                 'params' => [
                     'fc' => 'module',
-                    'module' => 'clientify'
+                    'module' => 'clientify',
                 ]
             ],
-            'module-restapimodule-connect' => [
+            'module-clientify-connect' => [
                 'rule' => 'clientify/connect',
                 'keywords' => [],
                 'controller' => 'connect',
                 'params' => [
                     'fc' => 'module',
-                    'module' => 'clientify'
+                    'module' => 'clientify',
                 ]
             ],
-            'module-restapimodule-sync_abandoned' => [
+            'module-clientify-syncabandoned' => [
                 'rule' => 'clientify/sync_abandoned',
                 'keywords' => [],
-                'controller' => 'sync_abandoned',
+                'controller' => 'syncabandoned',
                 'params' => [
                     'fc' => 'module',
-                    'module' => 'clientify'
+                    'module' => 'clientify',
                 ]
             ],
-            'module-restapimodule-sync_orders' => [
+            'module-clientify-syncorders' => [
                 'rule' => 'clientify/sync_orders',
                 'keywords' => [],
-                'controller' => 'sync_orders',
+                'controller' => 'syncorders',
                 'params' => [
                     'fc' => 'module',
-                    'module' => 'clientify'
+                    'module' => 'clientify',
                 ]
             ],
-            'module-restapimodule-sync_contacts' => [
+            'module-clientify-synccontacts' => [
                 'rule' => 'clientify/sync_contacts',
                 'keywords' => [],
-                'controller' => 'sync_contacts',
+                'controller' => 'synccontacts',
                 'params' => [
                     'fc' => 'module',
-                    'module' => 'clientify'
+                    'module' => 'clientify',
                 ]
             ],
-            'module-restapimodule-get_data' => [
+            'module-clientify-getdata' => [
                 'rule' => 'clientify/get_data',
                 'keywords' => [],
-                'controller' => 'get_data',
+                'controller' => 'getdata',
                 'params' => [
                     'fc' => 'module',
-                    'module' => 'clientify'
+                    'module' => 'clientify',
                 ]
             ],
-            
-
         ];
     }
 
 
-    public function hookactionObjectCustomerAddAfter($params)
+    public function hookActionCustomerAccountAdd($params)
     {
+        if (!isset($params['newCustomer']) || empty($params['newCustomer']->id)) {
+            return;
+        }
+
         include_once(__DIR__ . '/controllers/admin/controller_clientify_plugin_core.php');
         $hook_customer = new AdminCustomClientifyEndPoint();
-        if (shop::isFeatureActive() == true && $params['cart']->id_shop == $hook_customer->data_config['id_shop'] && $hook_customer->data_config['clientify_module_status'] == 1) {
+
+        $customer_id = (int) $params['newCustomer']->id;
+        $id_shop = Context::getContext()->shop->id;
+
+        if (Shop::isFeatureActive() == true && $id_shop == $hook_customer->data_config['id_shop'] && $hook_customer->data_config['clientify_module_status'] == 1) {
             $api = new ClientifyApi();
-            $new_custumer = $hook_customer->get_contact($params['object']->id);
-            $new_custumer['status'] = 'customer';
-            $new_custumer['store_url'] = $hook_customer->GetApiUrl($hook_customer->data_config['id_shop']);
-            $api->Post_Contacts_Clientify($new_custumer);
-        } elseif (shop::isFeatureActive() == false && $hook_customer->data_config['clientify_module_status'] == 1) {
-            // $hook_customer = new AdminCustomClientifyEndPoint();
+            $new_custumer = $hook_customer->get_contact($customer_id);
+            if ($new_custumer) {
+                $new_custumer['status'] = 'customer';
+                $new_custumer['store_url'] = $hook_customer->GetApiUrl($hook_customer->data_config['id_shop']);
+                $api->Post_Contacts_Clientify($new_custumer);
+            }
+        } elseif (Shop::isFeatureActive() == false && $hook_customer->data_config['clientify_module_status'] == 1) {
             $api = new ClientifyApi();
-            $new_custumer = $hook_customer->get_contact($params['object']->id);
-            $new_custumer['status'] = 'customer';
-            $new_custumer['store_url'] = $hook_customer->GetApiUrl($hook_customer->data_config['id_shop']);
-            $api->Post_Contacts_Clientify($new_custumer);
+            $new_custumer = $hook_customer->get_contact($customer_id);
+            if ($new_custumer) {
+                $new_custumer['status'] = 'customer';
+                $new_custumer['store_url'] = $hook_customer->GetApiUrl($hook_customer->data_config['id_shop']);
+                $api->Post_Contacts_Clientify($new_custumer);
+            }
         }
     }
 
     public function hookActionOrderStatusPostUpdate($params)
     {
+        if (!isset($params['id_order']) || empty($params['id_order'])) {
+            return;
+        }
+
         include_once(__DIR__ . '/controllers/admin/controller_clientify_plugin_core.php');
         $hook_customer = new AdminCustomClientifyEndPoint();
-        $ids_pay = explode(",", $hook_customer->data_config['clientify_order_status']);
-        if (shop::isFeatureActive() == true && $params['cart']->id_shop == $hook_customer->data_config['id_shop'] && $hook_customer->data_config['clientify_module_status'] == 1) {
-            //$order_pay = new Order((int) ($params['id_order']));
-            //foreach ($ids_pay as $pay_id_config) {
-                //if ($order_pay->current_state == $pay_id_config) {
-                    $hook_customer->get_orders((int) ($params['id_order']));
-                //}
-            //}
-        } elseif (shop::isFeatureActive() == false && $hook_customer->data_config['clientify_module_status'] == 1) {
-            //$order_pay = new Order((int) ($params['id_order']));
-            //foreach ($ids_pay as $pay_id_config) {
-                //if ($order_pay->current_state == $pay_id_config) {
-                    $da = $hook_customer->get_orders((int) ($params['id_order']));
-                //}
-            //}
+
+        $id_order = (int) $params['id_order'];
+        $order = new Order($id_order);
+
+        if (!Validate::isLoadedObject($order)) {
+            return;
+        }
+
+        if (Shop::isFeatureActive() == true && $order->id_shop == $hook_customer->data_config['id_shop'] && $hook_customer->data_config['clientify_module_status'] == 1) {
+            $hook_customer->get_orders($id_order);
+        } elseif (Shop::isFeatureActive() == false && $hook_customer->data_config['clientify_module_status'] == 1) {
+            $hook_customer->get_orders($id_order);
         }
     }
 
@@ -506,23 +571,31 @@ class Clientify extends Module
         $html = "";
         if ($hook_customer->data_config['clientify_script'] != '' && $hook_customer->data_config['clientify_module_status'] == 1) {
             $bottom_script = $hook_customer->data_config['clientify_script'];
-            $html = '<script src='.$bottom_script.'></script>';
+            $html = '<script src=' . $bottom_script . '></script>';
         }
-        
+
 
         return $html;
     }
     public function hookActionObjectProductAddAfter($params)
     {
-        // if (shop::isFeatureActive() == true && $params['object']->id_shop_default == Configuration::get('CLIENTIFY_id_shop')){                
+        if (!isset($params['object']) || empty($params['object']->id)) {
+            return true;
+        }
+
+        // if (shop::isFeatureActive() == true && $params['object']->id_shop_default == Configuration::get('CLIENTIFY_id_shop')){
         //     $hook_customer = new AdminCustomClientifyEndPoint();
         //     $hook_customer->get_product((int)($params['object']->id));
-        // }  
+        // }
         return true;
     }
 
     public function hookActionObjectProductUpdateAfter($params)
     {
+        if (!isset($params['object']) || empty($params['object']->id)) {
+            return true;
+        }
+
         include_once(__DIR__ . '/controllers/admin/controller_clientify_plugin_core.php');
 
         $hook_customer = new AdminCustomClientifyEndPoint();

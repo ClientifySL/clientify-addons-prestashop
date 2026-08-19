@@ -1,6 +1,6 @@
 <?php
 
-class ClientifyOrdersModuleFrontController extends ModuleFrontController
+class ClientifyStatusModuleFrontController extends ModuleFrontController
 {
     public function initContent()
     {
@@ -25,25 +25,10 @@ class ClientifyOrdersModuleFrontController extends ModuleFrontController
             if ($storeKey === $results_global[0]['clientify_store_key']) {
                 switch ($_SERVER['REQUEST_METHOD']) {
                     case 'GET':
-                        if (Tools::getValue('created_at_min')) {
-                            $from = Tools::getValue('created_at_min');
-                            $end = empty(Tools::getValue('date_end')) ? date("Y-m-d") : Tools::getValue('date_end');
-                            $per_page = empty(Tools::getValue('per_page')) ? 0 : Tools::getValue('per_page');
-                            $page = empty(Tools::getValue('page')) ? 1 : Tools::getValue('page');
-                        } else {
-                            $from = date("Y-m-d");
-                            $end = date("Y-m-d");
-                            $per_page = 0;
-                            $page = 0;
-                        }
-
                         $params = array(
-                            'date_init' => $from,
-                            'date_end' => $end,
-                            'per_page' => $per_page,
-                            'page' => $page
+                            'hook' => Tools::getValue('hook'),
                         );
-                        $response = $customApi->get_all_orders($params);
+                        $response = $customApi->get_plugin_status($params);
                         die($customApi->Data_response($response, 200));
                         break;
                     case 'POST':

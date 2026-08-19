@@ -14,6 +14,20 @@ class AdminCustomClientifyEndPoint
 		$this->data_config = $this->getIdShopConfigClientify(); // obtención del valor de la consulta SQL y asignación a la variable
 	}
 
+	/**
+	 * Obtains the store name in a manner compatible with PrestaShop 1.7/8/9.
+	 */
+	private function getShopName($idShop)
+	{
+		if (empty($idShop)) {
+			return 'prestashop';
+		}
+
+		$shop = new Shop((int) $idShop);
+
+		return $shop->id ? $shop->name : 'prestashop';
+	}
+
 	private function getIdShopConfigClientify()
 	{
 		$results_global = Db::getInstance()->executeS("SELECT * FROM " . _DB_PREFIX_ . "configuration_clientify");
@@ -24,7 +38,7 @@ class AdminCustomClientifyEndPoint
 	// {
 	// 	return '' === $needle || false !== strpos($haystack, $needle);
 	// }
-	
+
 
 	public function GetApiUrl($id_shop)
 	{
@@ -58,7 +72,75 @@ class AdminCustomClientifyEndPoint
 		Db::getInstance()->update('configuration_clientify', $data);
 		return $new_key;
 	}
-		/* change status pluging conneted or disconnect passes 0 / 1 */
+
+	/**
+	 * CTF-1875: estado del módulo/hooks para el endpoint "status" que consume
+	 * Django (ecommerce/stores.py::Prestashop.plugin_status ->
+	 * ecommerce/utils.py::check_plugin_connection). Antes no existía ningún
+	 * front controller para "status", así que Django recibía un 404/HTML en
+	 * vez de JSON y "connection_status" reportaba error_type=error.
+	 *
+	 * Los nombres de hook deben coincidir 1:1 con los que registra
+	 * clientify.php::install().
+	 */
+	public function get_plugin_status($params)
+	{
+		$id_shop = (int) $this->data_config['id_shop'];
+		$module_row = Db::getInstance()->getRow(
+			"SELECT id_module, active FROM " . _DB_PREFIX_ . "module WHERE name = 'clientify'"
+		);
+
+		$expected_hooks = array(
+			'header',
+			'backOfficeHeader',
+			'actionCustomerAccountAdd',
+			'actionOrderStatusPostUpdate',
+			'displayfooter',
+			'actionObjectProductAddAfter',
+			'actionObjectProductUpdateAfter',
+			'ModuleRoutes',
+		);
+
+		$hooks = array();
+		foreach ($expected_hooks as $hook_name) {
+			$hooks[$hook_name] = false;
+		}
+
+		if ($module_row) {
+			$registered = Db::getInstance()->executeS(
+				"SELECT h.name FROM " . _DB_PREFIX_ . "hook_module hm
+				 INNER JOIN " . _DB_PREFIX_ . "hook h ON h.id_hook = hm.id_hook
+				 WHERE hm.id_module = " . (int) $module_row['id_module'] . "
+				 AND (hm.id_shop = " . $id_shop . " OR hm.id_shop IS NULL)"
+			);
+
+			if (is_array($registered)) {
+				foreach ($registered as $row) {
+					if (array_key_exists($row['name'], $hooks)) {
+						$hooks[$row['name']] = true;
+					}
+				}
+			}
+		}
+
+		return array(
+			'module_active' => $module_row ? (bool) $module_row['active'] : false,
+			'module_version' => $this->module_version_or_default(),
+			'shop_name' => $this->getShopName($id_shop),
+			'store_key_configured' => !empty($this->data_config['clientify_store_key']),
+			'hooks' => $hooks,
+		);
+	}
+
+	private function module_version_or_default()
+	{
+		$version = Db::getInstance()->getValue(
+			"SELECT version FROM " . _DB_PREFIX_ . "module WHERE name = 'clientify'"
+		);
+		return $version ?: '1.0.0';
+	}
+
+	/* change status pluging conneted or disconnect passes 0 / 1 */
 	public function plugin_handling($params)
 	{
 		$db = Db::getInstance();
@@ -72,7 +154,7 @@ class AdminCustomClientifyEndPoint
 				'ecommerce' => 'prestashop',
 				'action' => 'connect',
 				'store_key' => $key_uid,
-				'name' => shop::getShop($this->data_config['id_shop'])['name'],
+				'name' => $this->getShopName($this->data_config['id_shop']),
 				'store_url' => $url_base
 			);
 
@@ -96,7 +178,7 @@ class AdminCustomClientifyEndPoint
 				'ecommerce' => 'prestashop',
 				'action' => 'disconnect',
 				'store_key' => $data_config[0]['clientify_store_key'],
-				'name' => shop::getShop($this->data_config['id_shop'])['name'],
+				'name' => $this->getShopName($this->data_config['id_shop']),
 				'store_url' => $url_base
 			);
 
@@ -115,16 +197,25 @@ class AdminCustomClientifyEndPoint
 		}
 	}
 
+	private function has_gdpr_consent($id_customer)
+	{
+		$result = Db::getInstance()->getValue(
+			'SELECT id_gdpr_log FROM ' . _DB_PREFIX_ . 'psgdpr_log WHERE id_customer = ' . (int) $id_customer
+		);
+
+		return !empty($result);
+	}
+
 	public function get_contact($user_id)
 	{
 		$context = Context::getContext();
 		$user = new Customer((int) $user_id);
-		$site_name = shop::getShop($this->data_config['id_shop'])['name'];
+		$site_name = $this->getShopName($this->data_config['id_shop']);
 		$site_name = empty($site_name) ? 'prestashop' : $site_name;
 		$lang = $context->language->iso_code;
 		$address = new Address(Address::getFirstCustomerAddressId($user_id));
 		$customer_phones = array();
-		
+
 		if ($user_id != 0) {
 			$data = array(
 				'id_customer' => $user_id,
@@ -133,8 +224,8 @@ class AdminCustomClientifyEndPoint
 				'user_registered' => $user->date_add,
 				'custom_fields' => [],
 				'company' => empty($address->company) ? '' : $address->company,
-				'identification' => $address->vat_number,
-				'gdpr_accept' => $user->newsletter,
+				'identification' => empty($address->dni) ? $address->vat_number : $address->dni,
+				'gdpr_accept' => $this->has_gdpr_consent($user_id),
 				'tags' => array(
 					'prestashop',
 					$site_name,
@@ -197,7 +288,6 @@ class AdminCustomClientifyEndPoint
 	public function get_orders($order_id)
 	{
 
-		$data = OrderDetail::getList((int) $order_id);
 		$order = new Order((int) $order_id); //paid and ids of order
 		$url_base = $this->GetApiUrl($this->data_config['id_shop']);
 		$shop = new Shop((int) $this->data_config['id_shop']);
@@ -250,7 +340,7 @@ class AdminCustomClientifyEndPoint
 			if ($id_image) {
 				$image = new Image($id_image['id_image']);
 				$image_url = _PS_BASE_URL_ . _THEME_PROD_DIR_ . $image->getExistingImgPath() . ".jpg";
-			} else{
+			} else {
 				$image_url = '';
 			}
 
@@ -262,68 +352,68 @@ class AdminCustomClientifyEndPoint
 			$global_discounts = floatval(number_format($order->total_products_wt, 2)) - floatval($order->total_discounts_tax_incl);
 			if ($global_discounts == 0) {
 				$discount_percent = 100;
-			}else{
-				$discount_percent = ($order->total_discounts_tax_incl * 100 ) / $order->total_products_wt;
+			} else {
+				$discount_percent = ($order->total_discounts_tax_incl * 100) / $order->total_products_wt;
 			}
 
 			$link = new Link();
 			$url = $link->getProductLink($product);
-			
+
 			// Verificar si se encontraron combinaciones
 			if (isset($order_product['product_type']) && ($order_product['product_type'] == 'combinations' || $order_product['product_attribute_id'] != 0)) {
 
-					$specific_price_output = array();
-					$price = ProductCore::getPriceStatic(
-						(int) $order_product['id_product'],
-						true,
-						$order_product['product_attribute_id'],
-						2,
-						null,
-						false,
-						true,
-						1,
-						false,
-						null,
-						'price',
-						$specific_price_output 
-					);
+				$specific_price_output = array();
+				$price = ProductCore::getPriceStatic(
+					(int) $order_product['id_product'],
+					true,
+					$order_product['product_attribute_id'],
+					2,
+					null,
+					false,
+					true,
+					1,
+					false,
+					null,
+					'price',
+					$specific_price_output
+				);
 
-					$url_attribute = $link->getProductLink(
-						$product,
-						null,
-						null,
-						null,
-						null,
-						null,
-						$order_product['product_attribute_id']
-					);
-					$product_name = ProductCore::getProductName($order_product['id_product'], $order_product['product_attribute_id']);
-					$combination_images = ProductCore::getCombinationImageById((int)$order_product['product_attribute_id'],1);
-					
-					if (!empty($combination_images)) {
-						$image = new Image($combination_images['id_image']);
+				$url_attribute = $link->getProductLink(
+					$product,
+					null,
+					null,
+					null,
+					null,
+					null,
+					$order_product['product_attribute_id']
+				);
+				$product_name = ProductCore::getProductName($order_product['id_product'], $order_product['product_attribute_id']);
+				$combination_images = ProductCore::getCombinationImageById((int) $order_product['product_attribute_id'], 1);
+
+				if (!empty($combination_images)) {
+					$image = new Image($combination_images['id_image']);
+					$image_url = _PS_BASE_URL_ . _THEME_PROD_DIR_ . $image->getExistingImgPath() . ".jpg";
+				} else {
+					if ($id_image) {
+						$image = new Image($id_image['id_image']);
 						$image_url = _PS_BASE_URL_ . _THEME_PROD_DIR_ . $image->getExistingImgPath() . ".jpg";
-					}else{
-						if ($id_image) {
-							$image = new Image($id_image['id_image']);
-							$image_url = _PS_BASE_URL_ . _THEME_PROD_DIR_ . $image->getExistingImgPath() . ".jpg";
-						} else {
-							$image_url = '';
-						}
+					} else {
+						$image_url = '';
 					}
-					$items[] = array(
-						'name' => $product_name,
-						'description' => isset($product->description[1]) ? trim(strip_tags($product->description[1])) : '',
-						'category' => $join_cat,
-						'sku' => $order_product['product_reference'],
-						'image_url' => $image_url,
-						'item_url' => $url_attribute,
-						'price' =>  number_format($order_product['unit_price_tax_incl'], 2, '.', ''),
-						'quantity' => $order_product['product_quantity'],
-						'discount' =>is_numeric($discount_percent) ? round($discount_percent) : 0,
-					);
+				}
+				$items[] = array(
+					'name' => $product_name,
+					'description' => isset($product->description[1]) ? trim(strip_tags($product->description[1])) : '',
+					'category' => $join_cat,
+					'sku' => $order_product['product_reference'],
+					'image_url' => $image_url,
+					'item_url' => $url_attribute,
+					'price' => number_format($order_product['unit_price_tax_incl'], 2, '.', ''),
+					'quantity' => $order_product['product_quantity'],
+					'discount' => is_numeric($discount_percent) ? round($discount_percent) : 0,
+				);
 
-			} else{
+			} else {
 
 				$product_name = ProductCore::getProductName($order_product['id_product']);
 
@@ -341,7 +431,7 @@ class AdminCustomClientifyEndPoint
 					'sku' => $product->reference,
 					'image_url' => $image_url,
 					'item_url' => $url,
-					'price' =>  number_format($price, 2, '.', ''),
+					'price' => number_format($price, 2, '.', ''),
 					'quantity' => $order_product['product_quantity'],
 					'discount' => is_numeric($discount_percent) ? round($discount_percent) : 0,
 				);
@@ -357,13 +447,13 @@ class AdminCustomClientifyEndPoint
 			'order_date' => date_format($date_format_clientify, 'Y-m-d H:i:s'),
 			'order_id' => $order->id,
 			'ecommerce' => 'prestashop',
-			'shop_name' => shop::getShop($this->data_config['id_shop'])['name'],
+			'shop_name' => $this->getShopName($this->data_config['id_shop']),
 			'order_url' => $shop_url . "/index.php?controller=pdf-invoice?id_order=$order_id",
 			'store_url' => $url_base,
 			'currency' => $currency['iso_code'],
 			'products' => $items,
-			'shipping' => $order->total_shipping == 0 ? '0' : number_format($order->total_shipping, 2, '.', ''),
-			'price' => number_format($order->total_paid, 2, '.', ''),
+			'shipping' => $order->total_shipping_tax_incl == 0 ? '0' : number_format($order->total_shipping_tax_incl, 2, '.', ''),
+			'price' => number_format($order->total_paid_tax_incl, 2, '.', ''),
 			'coupon' => $order->gift,
 		);
 		if (!empty($lang)) {
@@ -379,12 +469,13 @@ class AdminCustomClientifyEndPoint
 		return $clientify_order;
 	}
 
-	public function get_product($product_id){
+	public function get_product($product_id)
+	{
 
 		$product = new Product((int) $product_id);
 		$url_base = $this->GetApiUrl($this->data_config['id_shop']);
 		$id_image = Product::getCover($product->id);
-		
+
 		$categories = array();
 		$sub_categories = array();
 		$new_subcategories = array();
@@ -423,8 +514,8 @@ class AdminCustomClientifyEndPoint
 					INNER JOIN " . _DB_PREFIX_ . "category c ON cp.id_category = c.id_category
 					INNER JOIN " . _DB_PREFIX_ . "category_lang cl ON c.id_category = cl.id_category
 					WHERE cp.id_product = " . $product_id . " AND cl.id_lang = 1"
-			);
-		
+		);
+
 		if (is_array($terms)) {
 			foreach ($terms as $term) {
 				$term_search = new Category($term['id_parent'], Context::getContext()->language->id);
@@ -455,6 +546,7 @@ class AdminCustomClientifyEndPoint
 		// Verificar si se encontraron combinaciones
 		if (!empty($combinations)) {
 			// Iterar sobre las combinaciones y mostrar la información
+			$api = new ClientifyApi;
 			foreach ($combinations as $combination) {
 				$specific_price_output = array();
 				$price = ProductCore::getPriceStatic(
@@ -481,12 +573,12 @@ class AdminCustomClientifyEndPoint
 					$combination['id_product_attribute']
 				);
 				$product_name = ProductCore::getProductName($product_id, $combination['id_product_attribute']);
-				$combination_images = ProductCore::getCombinationImageById((int)$combination['id_product_attribute'],1);
+				$combination_images = ProductCore::getCombinationImageById((int) $combination['id_product_attribute'], 1);
 
 				if (!empty($combination_images)) {
 					$image = new Image($combination_images['id_image']);
 					$image_url = _PS_BASE_URL_ . _THEME_PROD_DIR_ . $image->getExistingImgPath() . ".jpg";
-				}else{
+				} else {
 					if ($id_image) {
 						$image = new Image($id_image['id_image']);
 						$image_url = _PS_BASE_URL_ . _THEME_PROD_DIR_ . $image->getExistingImgPath() . ".jpg";
@@ -497,23 +589,22 @@ class AdminCustomClientifyEndPoint
 				$data = array(
 					'status' => 'product',
 					'store_url' => $url_base,
-					'id' => (int)$combination['id_product_attribute'],
+					'id' => (int) $combination['id_product_attribute'],
 					'name' => $product_name,
 					'description' => isset($product->description[1]) ? trim(strip_tags($product->description[1])) : '',
 					'category' => $join_cat,
 					'sku' => $combination['reference'],
 					'image_url' => $image_url,
 					'item_url' => $url_attribute,
-					'price' =>  number_format($price, 2, '.', ''),
+					'price' => number_format($price, 2, '.', ''),
 					'currency' => $currency->iso_code,
 					'discount' => 0,
 					//$discount
 				);
-				$api = new ClientifyApi;
 				$clientify_product = $api->Post_Order_Clientify($data);
-				return $clientify_product;
 			}
-		 } else{
+			return $clientify_product;
+		} else {
 
 			$product_name = ProductCore::getProductName($product_id);
 
@@ -534,13 +625,13 @@ class AdminCustomClientifyEndPoint
 				'sku' => $product->reference,
 				'image_url' => $image_url,
 				'item_url' => $url,
-				'price' =>  number_format($price, 2, '.', ''),
+				'price' => number_format($price, 2, '.', ''),
 				'currency' => $currency->iso_code,
 				'discount' => 0,
 			);
-				$api = new ClientifyApi;
-				$clientify_product = $api->Post_Order_Clientify($data);
-				return $clientify_product;
+			$api = new ClientifyApi;
+			$clientify_product = $api->Post_Order_Clientify($data);
+			return $clientify_product;
 
 		}
 
@@ -581,7 +672,7 @@ class AdminCustomClientifyEndPoint
 			LEFT JOIN ' . _DB_PREFIX_ . 'cart_product t3 ON (t3.id_cart = t1.id_cart)
 			LEFT JOIN ' . _DB_PREFIX_ . 'product_attribute pa ON (t3.id_product_attribute = pa.id_product_attribute)
 			WHERE t3.id_cart = ' . (int) $cart_id['id_cart'] . ' AND t1.id_shop = ' . $this->data_config['id_shop'];
-			
+
 			$cart = Db::getInstance()->executes($sql);
 			$id_customer = $cart[0]['id_customer'];
 			$currency = Currency::getCurrency($cart[0]['id_currency']);
@@ -590,9 +681,9 @@ class AdminCustomClientifyEndPoint
 			$cart_content = new Cart($cart[0]['id_cart']);
 			$cartProducts = $cart_content->getProducts();
 			$cart_details = $cart_content->getSummaryDetails();
-			
+
 			foreach ($cartProducts as $order_product) {
-				
+
 				$product = new Product((int) $order_product['id_product']);
 				$link = new Link();
 				$url = $link->getProductLink($product);
@@ -645,7 +736,7 @@ class AdminCustomClientifyEndPoint
 					// Calculamos el porcentaje de descuento
 					$discount = ($cart_details['total_discounts'] * 100) / $price;
 				}
-				
+
 				// Verificar si se encontraron combinaciones
 				if (!empty($order_product['id_product_attribute'])) {
 
@@ -674,12 +765,12 @@ class AdminCustomClientifyEndPoint
 						$order_product['id_product_attribute']
 					);
 					$product_name = ProductCore::getProductName($order_product['id_product'], $order_product['id_product_attribute']);
-					$combination_images = ProductCore::getCombinationImageById((int)$order_product['id_product_attribute'],1);
+					$combination_images = ProductCore::getCombinationImageById((int) $order_product['id_product_attribute'], 1);
 
 					if (!empty($combination_images)) {
 						$image = new Image($combination_images['id_image']);
 						$image_url = _PS_BASE_URL_ . _THEME_PROD_DIR_ . $image->getExistingImgPath() . ".jpg";
-					}else{
+					} else {
 						if ($id_image) {
 							$image = new Image($id_image['id_image']);
 							$image_url = _PS_BASE_URL_ . _THEME_PROD_DIR_ . $image->getExistingImgPath() . ".jpg";
@@ -694,12 +785,12 @@ class AdminCustomClientifyEndPoint
 						'sku' => $order_product['reference'],
 						'image_url' => $image_url,
 						'item_url' => $url_attribute,
-						'price' =>  number_format($price, 2, '.', ''),
+						'price' => number_format($price, 2, '.', ''),
 						'quantity' => $order_product['cart_quantity'],
-						'discount' =>is_numeric($discount) ? round($discount) : 0,
+						'discount' => is_numeric($discount) ? round($discount) : 0,
 					);
 
-				} else{
+				} else {
 					$product_name = ProductCore::getProductName($order_product['id_product']);
 					if ($id_image) {
 						$image = new Image($id_image['id_image']);
@@ -715,12 +806,12 @@ class AdminCustomClientifyEndPoint
 						'sku' => $product->reference,
 						'image_url' => $image_url,
 						'item_url' => $url,
-						'price' =>  number_format($product->getPrice(true, null, 2, null, false, false), 2, '.', ''),
+						'price' => number_format($product->getPrice(true, null, 2, null, false, false), 2, '.', ''),
 						'quantity' => $order_product['cart_quantity'],
 						'discount' => is_numeric($discount) ? round($discount) : 0,
 					);
 
-			
+
 				}
 
 			}
@@ -732,7 +823,7 @@ class AdminCustomClientifyEndPoint
 				'cart_id' => $cart[0]['id_cart'],
 				'order_id' => $cart[0]['id_cart'],
 				'ecommerce' => 'prestashop',
-				'shop_name' => shop::getShop($this->data_config['id_shop'])['name'],
+				'shop_name' => $this->getShopName($this->data_config['id_shop']),
 				'order_url' => $url_shop . '/index.php?controller=order&recover_cart=' . $cart[0]['id_cart'],
 				'store_url' => $url_base,
 				'currency' => $currency['iso_code'],
@@ -745,7 +836,7 @@ class AdminCustomClientifyEndPoint
 			if ($data['contact'] != null) {
 				$all[] = $data;
 			}
-			
+
 		}
 		$all_link = array(
 			'data' => $all,
@@ -762,20 +853,20 @@ class AdminCustomClientifyEndPoint
 		$per_page = (int) $params["per_page"];
 		$date_null = $params["date_init"] != 0 ? "between  '" . date("Y-m-d", strtotime($params["date_init"])) . "'  and '" . date("Y-m-d", strtotime($params["date_end"])) . "'" : '';
 		$limit = $per_page != 0 ? 'LIMIT ' . (($page - 1) * $per_page) . ' , ' . $per_page . '' : '';
-		
+
 		// Consulta SQL unificada para obtener los IDs de orden
 		$query = "SELECT DISTINCT o.id_order 
 				  FROM " . _DB_PREFIX_ . "orders o
 				  LEFT JOIN " . _DB_PREFIX_ . "customer g ON (o.id_customer = g.id_customer) 
 				  WHERE DATE(invoice_date) " . $date_null . " AND o.id_shop = " . $this->data_config['id_shop'] . "
 				  ORDER BY o.id_order DESC " . $limit;
-		
+
 		// Ejecutar la consulta SQL
 		$order_ids = Db::getInstance()->executes($query);
-		
+
 		// Obtener el número total de resultados sin usar count()
 		$total = count($order_ids);
-		
+
 		// Calcular el número total de páginas
 		if (isset($per_page) && $per_page != '') {
 			$total_pages = ceil($total / $per_page);
@@ -843,8 +934,7 @@ class AdminCustomClientifyEndPoint
 
 				if ($order->total_products_wt == 0) {
 					$discount = 0;
-				}
-				else {
+				} else {
 					$discount = ($order->total_discounts * 100) / ($order->total_products_wt);
 				}
 
@@ -876,12 +966,12 @@ class AdminCustomClientifyEndPoint
 						$order_product['product_attribute_id']
 					);
 					$product_name = ProductCore::getProductName($order_product['id_product'], $order_product['product_attribute_id']);
-					$combination_images = ProductCore::getCombinationImageById((int)$order_product['product_attribute_id'],1);
+					$combination_images = ProductCore::getCombinationImageById((int) $order_product['product_attribute_id'], 1);
 
 					if (!empty($combination_images)) {
 						$image = new Image($combination_images['id_image']);
 						$image_url = _PS_BASE_URL_ . _THEME_PROD_DIR_ . $image->getExistingImgPath() . ".jpg";
-					}else{
+					} else {
 						if ($id_image) {
 							$image = new Image($id_image['id_image']);
 							$image_url = _PS_BASE_URL_ . _THEME_PROD_DIR_ . $image->getExistingImgPath() . ".jpg";
@@ -896,12 +986,12 @@ class AdminCustomClientifyEndPoint
 						'sku' => $order_product['product_reference'],
 						'image_url' => $image_url,
 						'item_url' => $url_attribute,
-						'price' =>  number_format($order_product['unit_price_tax_incl'], 2, '.', ''),
+						'price' => number_format($order_product['unit_price_tax_incl'], 2, '.', ''),
 						'quantity' => $order_product['product_quantity'],
-						'discount' =>is_numeric($discount) ? round($discount) : 0,
+						'discount' => is_numeric($discount) ? round($discount) : 0,
 					);
 
-				} else{
+				} else {
 
 					$product_name = ProductCore::getProductName($order_product['id_product']);
 
@@ -919,12 +1009,12 @@ class AdminCustomClientifyEndPoint
 						'sku' => $product->reference,
 						'image_url' => $image_url,
 						'item_url' => $url,
-						'price' =>  number_format($order_product['unit_price_tax_incl'], 2, '.', ''),
+						'price' => number_format($order_product['unit_price_tax_incl'], 2, '.', ''),
 						'quantity' => $order_product['product_quantity'],
 						'discount' => is_numeric($discount) ? round($discount) : 0,
 					);
 
-			
+
 				}
 			}
 			$data = array(
@@ -935,13 +1025,13 @@ class AdminCustomClientifyEndPoint
 				'order_date' => date_format($date_format_clientify, 'Y-m-d H:i:s'),
 				'order_id' => $order->id,
 				'ecommerce' => 'prestashop',
-				'shop_name' => shop::getShop($this->data_config['id_shop'])['name'],
+				'shop_name' => $this->getShopName($this->data_config['id_shop']),
 				'order_url' => $url_2 . "index.php?controller=pdf-invoice?id_order=" . $order_id['id_order'],
 				'store_url' => $url_base,
 				'currency' => $currency['iso_code'],
 				'products' => $items,
-				'shipping' => $order->total_shipping == 0 ? '0' : number_format($order->total_shipping, 2),
-				'price' => number_format($order->total_paid, 2, '.', ''),
+				'shipping' => $order->total_shipping_tax_incl == 0 ? '0' : number_format($order->total_shipping_tax_incl, 2, '.', ''),
+				'price' => number_format($order->total_paid_tax_incl, 2, '.', ''),
 				// 'visitor_key' => (string)$this->getVisitorKeyByCartId($_COOKIE['vk']),
 				'coupon' => $order->gift,
 			);
@@ -985,7 +1075,7 @@ class AdminCustomClientifyEndPoint
 			$user_id = $contact['id_customer'];
 			$context = Context::getContext();
 			$user = new Customer((int) $user_id);
-			$site_name = shop::getShop($this->data_config['id_shop'])['name'];
+			$site_name = $this->getShopName($this->data_config['id_shop']);
 			$site_name = empty($site_name) ? 'prestashop' : $site_name;
 			$lang = $context->language->iso_code;
 			$address = new Address(Address::getFirstCustomerAddressId($user_id));
@@ -998,9 +1088,9 @@ class AdminCustomClientifyEndPoint
 					'contact_source' => $site_name,
 					'user_registered' => $user->date_add,
 					'company' => empty($address->company) ? null : $address->company,
-					'identification' => $address->vat_number,
+					'identification' => empty($address->dni) ? $address->vat_number : $address->dni,
 					'custom_fields' => [],
-					'gdpr_accept' => $user->newsletter,
+					'gdpr_accept' => $this->has_gdpr_consent($user_id),
 					'tags' => array(
 						'prestashop',
 						$site_name,
@@ -1067,6 +1157,7 @@ class AdminCustomClientifyEndPoint
 	public function get_all_products($params)
 	{
 		$all = array();
+		$url_base = $this->GetApiUrl($this->data_config['id_shop']);
 		$new_categories = [];
 		$page = (int) (!isset($params["page"])) ? 1 : $params["page"];
 		$per_page = (int) $params["per_page"];
@@ -1090,7 +1181,7 @@ class AdminCustomClientifyEndPoint
 			$new_subcategories = array();
 			$context = Context::getContext();
 			$product = new Product((int) $id_product['id_product']);
-			
+
 			// Consulta SQL para obtener las combinaciones del producto con su nombre y precio de venta
 			$sql = "SELECT 
 			pac.id_product_attribute,
@@ -1200,12 +1291,12 @@ class AdminCustomClientifyEndPoint
 						$combination['id_product_attribute']
 					);
 					$product_name = ProductCore::getProductName($id_product['id_product'], $combination['id_product_attribute']);
-					$combination_images = ProductCore::getCombinationImageById((int)$combination['id_product_attribute'],1);
+					$combination_images = ProductCore::getCombinationImageById((int) $combination['id_product_attribute'], 1);
 
 					if (!empty($combination_images)) {
 						$image = new Image($combination_images['id_image']);
 						$image_url = _PS_BASE_URL_ . _THEME_PROD_DIR_ . $image->getExistingImgPath() . ".jpg";
-					}else{
+					} else {
 						if ($id_image) {
 							$image = new Image($id_image['id_image']);
 							$image_url = _PS_BASE_URL_ . _THEME_PROD_DIR_ . $image->getExistingImgPath() . ".jpg";
@@ -1215,21 +1306,23 @@ class AdminCustomClientifyEndPoint
 					}
 
 					$data = array(
-						'id' => (int)$combination['id_product_attribute'],
+						'status' => 'product',
+						'store_url' => $url_base,
+						'id' => (int) $combination['id_product_attribute'],
 						'name' => $product_name,
 						'description' => isset($product->description[1]) ? trim(strip_tags($product->description[1])) : '',
 						'category' => $join_cat,
 						'sku' => $combination['reference'],
 						'image_url' => $image_url,
 						'item_url' => $url_attribute,
-						'price' =>  number_format($price, 2, '.', ''),
+						'price' => number_format($price, 2, '.', ''),
 						'currency' => $currency->iso_code,
 						'discount' => 0,
 						//$discount
 					);
 					$all[] = $data;
 				}
-			} else{
+			} else {
 
 				$product_name = ProductCore::getProductName($id_product['id_product']);
 
@@ -1241,6 +1334,8 @@ class AdminCustomClientifyEndPoint
 				}
 
 				$data = array(
+					'status' => 'product',
+					'store_url' => $url_base,
 					'id' => $product->id,
 					'name' => $product_name,
 					'description' => isset($product->description[1]) ? trim(strip_tags($product->description[1])) : '',
@@ -1248,14 +1343,14 @@ class AdminCustomClientifyEndPoint
 					'sku' => $product->reference,
 					'image_url' => $image_url,
 					'item_url' => $url,
-					'price' =>  number_format($price, 2, '.', ''),
+					'price' => number_format($price, 2, '.', ''),
 					'currency' => $currency->iso_code,
 					'discount' => 0,
 					//$discount
 				);
 				$all[] = $data;
 
-			}	
+			}
 		}
 
 		$all_link = array(
@@ -1267,18 +1362,17 @@ class AdminCustomClientifyEndPoint
 
 	public function Data_response($data, $httpStatus)
 	{
-		header_remove();
+		http_response_code($httpStatus);
+		header('Content-Type: application/json; charset=utf-8');
+
 		if (isset($data['Link'])) {
-			header('Content-Type: application/json; charset=utf-8');
-			$data['Link'] == '' ? '' : header('Link:' . $data['Link']);
-			http_response_code($httpStatus);
-			echo json_encode($data['data']);
+			if ($data['Link'] != '') {
+				header('Link:' . $data['Link']);
+			}
+			return json_encode($data['data']);
 		} else {
-			header('Content-Type: application/json; charset=utf-8');
-			http_response_code($httpStatus);
-			echo json_encode($data);
+			return json_encode($data);
 		}
-		exit();
 	}
 	public function categoryExists($categories, $id_parent)
 	{
@@ -1290,7 +1384,7 @@ class AdminCustomClientifyEndPoint
 		}
 		return false;
 	}
-	
+
 	public function sync_abandoned_carts($params)
 	{
 
@@ -1389,118 +1483,118 @@ class AdminCustomClientifyEndPoint
 				} else {
 					// Calculamos el porcentaje de descuento
 					$discount = ($cart_details['total_discounts'] * 100) / $cart_details['total_products_wt'];
-					
+
 				}
-				
+
 				// Verificar si se encontraron combinaciones
-			if (!empty($order_product['id_product_attribute'])) {
+				if (!empty($order_product['id_product_attribute'])) {
 
-				$specific_price_output = array();
-				$price = ProductCore::getPriceStatic(
-					(int) $order_product['id_product'],
-					true, // tax
-					$order_product['id_product_attribute'],
-					2, // precision
-					null, // divise
-					false, // only_reduction
-					true, // use_reduc
-					1, // quantity
-					false, // force_cashe
-					null, //id_currency
-					'price', // price_tax_exc
-					$specific_price_output
-				);
-				$url_attribute = $link->getProductLink(
-					$product,
-					null,
-					null,
-					null,
-					null,
-					null,
-					$order_product['id_product_attribute']
-				);
-				$product_name = ProductCore::getProductName($order_product['id_product'], $order_product['id_product_attribute']);
-				$combination_images = ProductCore::getCombinationImageById((int)$order_product['id_product_attribute'],1);
+					$specific_price_output = array();
+					$price = ProductCore::getPriceStatic(
+						(int) $order_product['id_product'],
+						true, // tax
+						$order_product['id_product_attribute'],
+						2, // precision
+						null, // divise
+						false, // only_reduction
+						true, // use_reduc
+						1, // quantity
+						false, // force_cashe
+						null, //id_currency
+						'price', // price_tax_exc
+						$specific_price_output
+					);
+					$url_attribute = $link->getProductLink(
+						$product,
+						null,
+						null,
+						null,
+						null,
+						null,
+						$order_product['id_product_attribute']
+					);
+					$product_name = ProductCore::getProductName($order_product['id_product'], $order_product['id_product_attribute']);
+					$combination_images = ProductCore::getCombinationImageById((int) $order_product['id_product_attribute'], 1);
 
-				if (!empty($combination_images)) {
-					$image = new Image($combination_images['id_image']);
-					$image_url = _PS_BASE_URL_ . _THEME_PROD_DIR_ . $image->getExistingImgPath() . ".jpg";
-				}else{
+					if (!empty($combination_images)) {
+						$image = new Image($combination_images['id_image']);
+						$image_url = _PS_BASE_URL_ . _THEME_PROD_DIR_ . $image->getExistingImgPath() . ".jpg";
+					} else {
+						if ($id_image) {
+							$image = new Image($id_image['id_image']);
+							$image_url = _PS_BASE_URL_ . _THEME_PROD_DIR_ . $image->getExistingImgPath() . ".jpg";
+						} else {
+							$image_url = '';
+						}
+					}
+					$items[] = array(
+						'name' => $product_name,
+						'description' => isset($product->description[1]) ? trim(strip_tags($product->description[1])) : '',
+						'category' => $join_cat,
+						'sku' => $order_product['reference'],
+						'image_url' => $image_url,
+						'item_url' => $url_attribute,
+						'price' => number_format($price, 2, '.', ''),
+						'quantity' => $order_product['cart_quantity'],
+						'discount' => is_numeric($discount) ? round($discount) : 0,
+					);
+
+				} else {
+
+					$product_name = ProductCore::getProductName($order_product['id_product']);
+
 					if ($id_image) {
 						$image = new Image($id_image['id_image']);
 						$image_url = _PS_BASE_URL_ . _THEME_PROD_DIR_ . $image->getExistingImgPath() . ".jpg";
 					} else {
 						$image_url = '';
 					}
-				}
-				$items[] = array(
-					'name' => $product_name,
-					'description' => isset($product->description[1]) ? trim(strip_tags($product->description[1])) : '',
-					'category' => $join_cat,
-					'sku' => $order_product['reference'],
-					'image_url' => $image_url,
-					'item_url' => $url_attribute,
-					'price' =>  number_format($price, 2, '.', ''),
-					'quantity' => $order_product['cart_quantity'],
-					'discount' =>is_numeric($discount) ? round($discount) : 0,
-				);
 
-			} else{
+					$items[] = array(
+						'name' => $product_name,
+						'description' => $product->description[1],
+						'category' => $join_cat,
+						'sku' => $product->reference,
+						'image_url' => $image_url,
+						'item_url' => $url,
+						'price' => number_format($product->getPrice(true, null, 2, null, false, false), 2, '.', ''),
+						'quantity' => $order_product['cart_quantity'],
+						'discount' => is_numeric($discount) ? round($discount) : 0,
+					);
 
-				$product_name = ProductCore::getProductName($order_product['id_product']);
 
-				if ($id_image) {
-					$image = new Image($id_image['id_image']);
-					$image_url = _PS_BASE_URL_ . _THEME_PROD_DIR_ . $image->getExistingImgPath() . ".jpg";
-				} else {
-					$image_url = '';
 				}
 
-				$items[] = array(
-					'name' => $product_name,
-					'description' => $product->description[1],
-					'category' => $join_cat,
-					'sku' => $product->reference,
-					'image_url' => $image_url,
-					'item_url' => $url,
-					'price' =>  number_format($product->getPrice(true, null, 2, null, false, false), 2, '.', ''),
-					'quantity' => $order_product['cart_quantity'],
-					'discount' => is_numeric($discount) ? round($discount) : 0,
+				$data = array(
+					'status' => 'abandoned',
+					'current_state' => 'abandoned',
+					'contact' => $id_customer == 0 ? null : $this->Get_contact($id_customer),
+					'abandoned_date' => date('Y-m-d', strtotime($cart[0]['date_add'])),
+					'cart_id' => $cart[0]['id_cart'],
+					'order_id' => $cart[0]['id_cart'],
+					'ecommerce' => 'prestashop',
+					'shop_name' => $this->getShopName($this->data_config['id_shop']),
+					'order_url' => $url_shop . '/index.php?controller=order&recover_cart=' . $cart[0]['id_cart'],
+					'store_url' => $url_base,
+					'currency' => $currency['iso_code'],
+					'products' => $items,
+					'shipping' => $cart_details['total_shipping'] == 0 ? '0' : number_format($cart_details['total_shipping'], 2, '.', ''),
+					'price' => number_format($cart_details['total_price'], 2, '.', ''),
+					'coupon' => 0,
+
 				);
+				//Send data to Clientify
+				if ($data['contact'] != null) {
 
-		
+					$api = new ClientifyApi;
+					$abandoned = $api->Post_Order_Clientify($data);
+					$result_sync[] = $abandoned;
+
+					$all[] = $result_sync;
+				}
 			}
 
-			$data = array(
-				'status' => 'abandoned',
-				'current_state' => 'abandoned',
-				'contact' => $id_customer == 0 ? null : $this->Get_contact($id_customer),
-				'abandoned_date' => date('Y-m-d', strtotime($cart[0]['date_add'])),
-				'cart_id' => $cart[0]['id_cart'],
-				'order_id' => $cart[0]['id_cart'],
-				'ecommerce' => 'prestashop',
-				'shop_name' => shop::getShop($this->data_config['id_shop'])['name'],
-				'order_url' => $url_shop . '/index.php?controller=order&recover_cart=' . $cart[0]['id_cart'],
-				'store_url' => $url_base,
-				'currency' => $currency['iso_code'],
-				'products' => $items,
-				'shipping' => $cart_details['total_shipping'] == 0 ? '0' : number_format($cart_details['total_shipping'], 2, '.', ''),
-				'price' => number_format($cart_details['total_price'], 2, '.', ''),
-				'coupon' => 0,
 
-			);
-			//Send data to Clientify
-			if ($data['contact'] != null) {
-				
-				$api = new ClientifyApi;
-				$abandoned = $api->Post_Order_Clientify($data);
-				$result_sync [] = $abandoned;
-				
-				$all [] = $result_sync;
-			}
-			}
-
-		
 		}
 		return $all;
 	}
@@ -1514,7 +1608,7 @@ class AdminCustomClientifyEndPoint
 		$per_page = (int) $params["per_page"];
 		$date_null = $params["date_init"] != 0 ? "between  '" . date("Y-m-d", strtotime($params["date_init"])) . "'  and '" . date("Y-m-d", strtotime($params["date_end"])) . "'" : '';
 		$limit = $per_page != 0 ? 'LIMIT ' . (($page - 1) * $per_page) . ' , ' . $per_page . '' : '';
-		
+
 		// Consulta SQL unificada para obtener los IDs de orden
 		$query = "SELECT DISTINCT o.id_order 
 				  FROM " . _DB_PREFIX_ . "orders o
@@ -1523,10 +1617,10 @@ class AdminCustomClientifyEndPoint
 				  ORDER BY o.id_order DESC " . $limit;
 		// Ejecutar la consulta SQL
 		$order_ids = Db::getInstance()->executes($query);
-		
+
 		// Obtener el número total de resultados sin usar count()
 		$total = count($order_ids);
-		
+
 		// Calcular el número total de páginas
 		if (isset($per_page) && $per_page != '') {
 			$total_pages = ceil($total / $per_page);
@@ -1593,11 +1687,10 @@ class AdminCustomClientifyEndPoint
 
 				if ($order->total_products_wt == 0) {
 					$discount = 0;
-				}
-				else {
+				} else {
 					$discount = ($order->total_discounts * 100) / ($order->total_products_wt);
 				}
-				
+
 				// Verificar si se encontraron combinaciones
 				if (isset($order_product['product_type']) && ($order_product['product_type'] == 'combinations' || $order_product['product_attribute_id'] != 0)) {
 
@@ -1626,12 +1719,12 @@ class AdminCustomClientifyEndPoint
 						$order_product['product_attribute_id']
 					);
 					$product_name = ProductCore::getProductName($order_product['id_product'], $order_product['product_attribute_id']);
-					$combination_images = ProductCore::getCombinationImageById((int)$order_product['product_attribute_id'],1);
+					$combination_images = ProductCore::getCombinationImageById((int) $order_product['product_attribute_id'], 1);
 
 					if (!empty($combination_images)) {
 						$image = new Image($combination_images['id_image']);
 						$image_url = _PS_BASE_URL_ . _THEME_PROD_DIR_ . $image->getExistingImgPath() . ".jpg";
-					}else{
+					} else {
 						if ($id_image) {
 							$image = new Image($id_image['id_image']);
 							$image_url = _PS_BASE_URL_ . _THEME_PROD_DIR_ . $image->getExistingImgPath() . ".jpg";
@@ -1646,12 +1739,12 @@ class AdminCustomClientifyEndPoint
 						'sku' => $order_product['product_reference'],
 						'image_url' => $image_url,
 						'item_url' => $url_attribute,
-						'price' =>  number_format($order_product['unit_price_tax_incl'], 2, '.', ''),
+						'price' => number_format($order_product['unit_price_tax_incl'], 2, '.', ''),
 						'quantity' => $order_product['product_quantity'],
-						'discount' =>is_numeric($discount) ? round($discount) : 0,
+						'discount' => is_numeric($discount) ? round($discount) : 0,
 					);
 
-				} else{
+				} else {
 
 					$product_name = ProductCore::getProductName($order_product['id_product']);
 
@@ -1669,14 +1762,14 @@ class AdminCustomClientifyEndPoint
 						'sku' => $product->reference,
 						'image_url' => $image_url,
 						'item_url' => $url,
-						'price' =>  number_format($order_product['unit_price_tax_incl'], 2, '.', ''),
+						'price' => number_format($order_product['unit_price_tax_incl'], 2, '.', ''),
 						'quantity' => $order_product['product_quantity'],
 						'discount' => is_numeric($discount) ? round($discount) : 0,
 					);
 
 
 				}
-				
+
 			}
 			$data = array(
 
@@ -1686,13 +1779,13 @@ class AdminCustomClientifyEndPoint
 				'order_date' => date_format($date_format_clientify, 'Y-m-d H:i:s'),
 				'order_id' => $order->id,
 				'ecommerce' => 'prestashop',
-				'shop_name' => shop::getShop($this->data_config['id_shop'])['name'],
+				'shop_name' => $this->getShopName($this->data_config['id_shop']),
 				'order_url' => $url_2 . "index.php?controller=pdf-invoice?id_order=" . $order_id['id_order'],
 				'store_url' => $url_base,
 				'currency' => $currency['iso_code'],
 				'products' => $items,
-				'shipping' => $order->total_shipping == 0 ? '0' : number_format($order->total_shipping, 2, '.', ''),
-				'price' => number_format($order->total_paid, 2, '.', ''),
+				'shipping' => $order->total_shipping_tax_incl == 0 ? '0' : number_format($order->total_shipping_tax_incl, 2, '.', ''),
+				'price' => number_format($order->total_paid_tax_incl, 2, '.', ''),
 				// 'visitor_key' => (string)$this->getVisitorKeyByCartId($_COOKIE['vk']),
 				'coupon' => $order->gift,
 			);
@@ -1706,7 +1799,7 @@ class AdminCustomClientifyEndPoint
 			//Send data to Clientify
 			$api = new ClientifyApi;
 			$orders = $api->Post_Order_Clientify($data);
-			$result_sync [] = $orders; 
+			$result_sync[] = $orders;
 
 			$all[] = $data;
 		}
@@ -1738,7 +1831,7 @@ class AdminCustomClientifyEndPoint
 			$user_id = $contact['id_customer'];
 			$context = Context::getContext();
 			$user = new Customer((int) $user_id);
-			$site_name = shop::getShop($this->data_config['id_shop'])['name'];
+			$site_name = $this->getShopName($this->data_config['id_shop']);
 			$site_name = empty($site_name) ? 'prestashop' : $site_name;
 			$lang = $context->language->iso_code;
 			$address = new Address(Address::getFirstCustomerAddressId($user_id));
@@ -1752,9 +1845,9 @@ class AdminCustomClientifyEndPoint
 					'contact_source' => $site_name,
 					'user_registered' => $user->date_add,
 					'company' => empty($address->company) ? null : $address->company,
-					'identification' => $address->vat_number,
+					'identification' => empty($address->dni) ? $address->vat_number : $address->dni,
 					'custom_fields' => [],
-					'gdpr_accept' => $user->newsletter,
+					'gdpr_accept' => $this->has_gdpr_consent($user_id),
 					'store_url' => $store_url,
 					'tags' => array(
 						'prestashop',
@@ -1813,28 +1906,29 @@ class AdminCustomClientifyEndPoint
 			//Send data to Clientify
 			$api = new ClientifyApi;
 			$contacts_sync = $api->Post_Contacts_Clientify($data);
-			$result_sync [] = $contacts_sync; 
+			$result_sync[] = $contacts_sync;
 
 			$all[] = $data;
 		}
-		
+
 		return $result_sync;
 	}
 
-	function get_data_pluginserver() {
-		 // Obtener datos del servidor
-		 $datosServidor = array(
+	function get_data_pluginserver()
+	{
+		// Obtener datos del servidor
+		$datosServidor = array(
 			'os' => php_uname('s'),
 			'php_version' => phpversion(),
 			//'ip_server' => $_SERVER['SERVER_ADDR'],
 			'server_name' => $_SERVER['SERVER_NAME']
 		);
-		
+
 		// Obtener versión de PrestaShop
-		$archivoConfiguracion = _PS_ROOT_DIR_.'/config/config.inc.php';
+		$archivoConfiguracion = _PS_ROOT_DIR_ . '/config/config.inc.php';
 		if (file_exists($archivoConfiguracion)) {
 			require_once($archivoConfiguracion);
-	
+
 			// Verificar si la constante _PS_VERSION_ ya está definida
 			if (!defined('_PS_VERSION_')) {
 				$datosPrestashop = array(
@@ -1845,7 +1939,7 @@ class AdminCustomClientifyEndPoint
 					'prestashop_version' => _PS_VERSION_,
 					'prestashop_multishop' => shop::isFeatureActive(),
 					'shop_name' => Configuration::get('PS_SHOP_NAME'),
-					'url_tienda' => Tools::getShopDomain(true, true).__PS_BASE_URI__
+					'url_tienda' => Tools::getShopDomain(true, true) . __PS_BASE_URI__
 				);
 			}
 		} else {
@@ -1853,29 +1947,29 @@ class AdminCustomClientifyEndPoint
 				'error' => 'No se pudo encontrar el archivo de configuración de PrestaShop'
 			);
 		}
-	
+
 		// Obtener versión del módulo
 		if (class_exists('clientify')) {
 			$configuiration_clientify = $this->getIdShopConfigClientify();
 			$moduloClientify = new clientify();
 			$datosModulo = array(
-				'module_name'	 => $moduloClientify->name,
-				'module_author'	 => $moduloClientify->author,
+				'module_name' => $moduloClientify->name,
+				'module_author' => $moduloClientify->author,
 				'module_store_key' => $configuiration_clientify['clientify_store_key'],
 				'module_version' => $moduloClientify->version,
-				'module_status'	 => $configuiration_clientify['clientify_module_status'],
-				'id_shop'		 => $configuiration_clientify['id_shop'],
-				'clientify_script'	=> $configuiration_clientify['clientify_script'],
+				'module_status' => $configuiration_clientify['clientify_module_status'],
+				'id_shop' => $configuiration_clientify['id_shop'],
+				'clientify_script' => $configuiration_clientify['clientify_script'],
 			);
 		} else {
 			$datosModulo = array(
 				'error' => 'No se encontró la clase del módulo clientify'
 			);
 		}
-	
+
 		// Combinar datos y devolverlos
 		$datosCombinados = array_merge($datosServidor, $datosPrestashop, $datosModulo);
 		return $datosCombinados;
 	}
-	
+
 }
