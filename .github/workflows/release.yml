@@ -1,64 +1,56 @@
-# Publica una GitHub Release con el ZIP del módulo al pushear un tag `vX.Y.Z`.
-#
-# El módulo (en el servidor del cliente) consulta la API pública de releases de
-# GitHub para auto-actualizarse: necesita que el repo sea PÚBLICO y que exista
-# una release con el ZIP adjunto. Este workflow crea ese ZIP con la estructura
-# que PrestaShop espera: una carpeta raíz `clientify/` (= nombre del módulo, con
-# `clientify/clientify.php` como fichero principal).
-#
-# Estándar (repo público): runs-on de GitHub (NUNCA self-hosted — un PR desde un
-# fork ejecutaría en nuestra infra) y SOLO el GITHUB_TOKEN automático.
-name: Release
+name: Release Module
 
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*.*.*'
 
 permissions:
-  contents: write        # solo para crear la Release; nada más
+  contents: write
 
 jobs:
-  release:
+  build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Versión desde el tag
-        id: v
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: Inyectar la versión en el módulo
+      - name: Inject version into clientify.php and config.xml
         run: |
-          set -euo pipefail
-          V="${{ steps.v.outputs.version }}"
-          # config.xml: <version><![CDATA[X.Y.Z]]></version>
-          sed -i -E "s#(<version><!\[CDATA\[)[^]]*(\]\]></version>)#\1${V}\2#" config.xml
-          # clientify.php: $this->version = 'X.Y.Z';
-          sed -i -E "s#(\\\$this->version[[:space:]]*=[[:space:]]*')[^']*(';)#\1${V}\2#" clientify.php
-          echo "  config.xml -> $(grep -oE '<version><!\[CDATA\[[^]]*' config.xml)"
-          echo "  clientify.php -> $(grep -oE "\\\$this->version = '[^']*'" clientify.php)"
+          sed -i "s/\\\$this->version = '[^']*';/\$this->version = '${{ steps.get_version.outputs.VERSION }}';/" clientify.php
+          sed -i "s|<version><!\[CDATA\[[^]]*\]\]></version>|<version><![CDATA[${{ steps.get_version.outputs.VERSION }}]]></version>|" config.xml
 
-      - name: Empaquetar el ZIP (carpeta raíz clientify/)
+      - name: Build module ZIP
         run: |
-          set -euo pipefail
-          V="${{ steps.v.outputs.version }}"
           mkdir -p build/clientify
-          # copia todo el módulo menos lo que no debe ir a producción
-          rsync -a --exclude='.git' --exclude='.github' --exclude='build' \
-                --exclude='*.md' --exclude='.gitignore' ./ build/clientify/
+          rsync -av \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='build' \
+            --exclude='.gitignore' \
+            --exclude='*.md' \
+            . build/clientify/
           cd build
-          zip -rq "clientify-v${V}.zip" clientify
-          echo "  contenido (top):"
-          unzip -l "clientify-v${V}.zip" | grep 'clientify/' | head -5
+          zip -r ../clientify-v${{ steps.get_version.outputs.VERSION }}.zip clientify/
 
-      - name: Publicar la Release
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Clientify v${{ steps.get_version.outputs.VERSION }}"
+          body: |
+            ## Clientify PrestaShop Module v${{ steps.get_version.outputs.VERSION }}
+
+            ### Instalación
+            1. Descarga el archivo `clientify-v${{ steps.get_version.outputs.VERSION }}.zip`
+            2. Ve a **Módulos → Gestión de Módulos → Subir módulo**
+            3. Selecciona el ZIP descargado
+          files: clientify-v${{ steps.get_version.outputs.VERSION }}.zip
+          draft: false
+          prerelease: false
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          V="${{ steps.v.outputs.version }}"
-          gh release create "${GITHUB_REF_NAME}" \
-            "build/clientify-v${V}.zip" \
-            --title "v${V}" \
-            --generate-notes
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

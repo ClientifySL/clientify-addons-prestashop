@@ -1,6 +1,6 @@
 <?php
 
-class ClientifyOrdersModuleFrontController extends ModuleFrontController
+class ClientifySyncabandonedModuleFrontController extends ModuleFrontController
 {
     public function initContent()
     {
@@ -43,7 +43,7 @@ class ClientifyOrdersModuleFrontController extends ModuleFrontController
                             'per_page' => $per_page,
                             'page' => $page
                         );
-                        $response = $customApi->get_all_orders($params);
+                        $response = $customApi->sync_abandoned_carts($params);
                         die($customApi->Data_response($response, 200));
                         break;
                     case 'POST':
