@@ -28,6 +28,26 @@ class AdminCustomClientifyEndPoint
 		return $shop->id ? $shop->name : 'prestashop';
 	}
 
+	/**
+	 * Returns the most recently updated active address of the customer.
+	 * Address::getFirstCustomerAddressId() orders by id_address ASC (oldest
+	 * address), which sends stale fiscal/address data on every sync when the
+	 * customer edits or adds a newer address.
+	 */
+	private function getLatestCustomerAddressId($id_customer)
+	{
+		if (!$id_customer) {
+			return false;
+		}
+
+		return (int) Db::getInstance()->getValue(
+			'SELECT `id_address`
+			FROM `' . _DB_PREFIX_ . 'address`
+			WHERE `id_customer` = ' . (int) $id_customer . ' AND `deleted` = 0 AND `active` = 1
+			ORDER BY `date_upd` DESC, `id_address` DESC'
+		);
+	}
+
 	private function getIdShopConfigClientify()
 	{
 		$results_global = Db::getInstance()->executeS("SELECT * FROM " . _DB_PREFIX_ . "configuration_clientify");
@@ -213,7 +233,7 @@ class AdminCustomClientifyEndPoint
 		$site_name = $this->getShopName($this->data_config['id_shop']);
 		$site_name = empty($site_name) ? 'prestashop' : $site_name;
 		$lang = $context->language->iso_code;
-		$address = new Address(Address::getFirstCustomerAddressId($user_id));
+		$address = new Address($this->getLatestCustomerAddressId($user_id));
 		$customer_phones = array();
 
 		if ($user_id != 0) {
@@ -225,6 +245,7 @@ class AdminCustomClientifyEndPoint
 				'custom_fields' => [],
 				'company' => empty($address->company) ? '' : $address->company,
 				'identification' => empty($address->dni) ? $address->vat_number : $address->dni,
+				'birthday' => (empty($user->birthday) || $user->birthday === '0000-00-00') ? '' : $user->birthday,
 				'gdpr_accept' => $this->has_gdpr_consent($user_id),
 				'tags' => array(
 					'prestashop',
@@ -1078,7 +1099,7 @@ class AdminCustomClientifyEndPoint
 			$site_name = $this->getShopName($this->data_config['id_shop']);
 			$site_name = empty($site_name) ? 'prestashop' : $site_name;
 			$lang = $context->language->iso_code;
-			$address = new Address(Address::getFirstCustomerAddressId($user_id));
+			$address = new Address($this->getLatestCustomerAddressId($user_id));
 			$customer_phones = array();
 
 			if ($user_id != 0) {
@@ -1834,7 +1855,7 @@ class AdminCustomClientifyEndPoint
 			$site_name = $this->getShopName($this->data_config['id_shop']);
 			$site_name = empty($site_name) ? 'prestashop' : $site_name;
 			$lang = $context->language->iso_code;
-			$address = new Address(Address::getFirstCustomerAddressId($user_id));
+			$address = new Address($this->getLatestCustomerAddressId($user_id));
 			$customer_phones = array();
 
 			if ($user_id != 0) {
