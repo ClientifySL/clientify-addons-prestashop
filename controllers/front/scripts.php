@@ -67,6 +67,9 @@ class ClientifyScriptsModuleFrontController extends ModuleFrontController
                         break;
                 }
             } else {
+                if (class_exists('AdminClientifyController')) {
+                    AdminClientifyController::addLog('error', 'Fallo de autenticacion en endpoint scripts: storekey no coincide');
+                }
                 $response = array('Error' => 'Auth Error', 'data' => 'authentication code not found');
                 die($customApi->Data_response($response, 401));
             }

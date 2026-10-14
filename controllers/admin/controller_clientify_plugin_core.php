@@ -15,6 +15,85 @@ class AdminCustomClientifyEndPoint
 	}
 
 	/**
+	 * Parsea una fecha recibida en cualquiera de los formatos soportados y la normaliza
+	 * a $output_format (por defecto Y-m-d). Evita la ambigüedad de strtotime() entre
+	 * DD-MM-YYYY y YYYY-MM-DD probando primero una lista explícita de formatos conocidos.
+	 *
+	 * Lanza una excepción si ningún formato coincide y strtotime() tampoco reconoce la cadena,
+	 * en vez de devolver una fecha por defecto en silencio.
+	 *
+	 * @param string $date_str
+	 * @param string $output_format
+	 * @return string
+	 * @throws Exception
+	 */
+	public static function parse_date_flexible($date_str, $output_format = 'Y-m-d')
+	{
+		$date_str = trim((string) $date_str);
+
+		$formats = [
+			'Y-m-d\TH:i:sP',
+			'Y-m-d\TH:i:s',
+			'Y-m-d H:i:s',
+			'Y-m-d',
+			'Y/m/d',
+			'd-m-Y',
+			'd/m/Y',
+			'm-d-Y',
+			'm/d/Y',
+		];
+
+		foreach ($formats as $fmt) {
+			$dt = DateTime::createFromFormat($fmt, $date_str);
+			if ($dt instanceof DateTime) {
+				$errors = DateTime::getLastErrors();
+				if (empty($errors['warning_count']) && empty($errors['error_count'])) {
+					return $dt->format($output_format);
+				}
+			}
+		}
+
+		$ts = strtotime($date_str);
+		if ($ts !== false) {
+			return date($output_format, $ts);
+		}
+
+		throw new Exception('Formato de fecha no reconocido: ' . $date_str);
+	}
+
+	/**
+	 * Construye el fragmento SQL "between 'x' and 'y'" usado para filtrar por fecha,
+	 * usando parse_date_flexible() para normalizar el formato recibido.
+	 *
+	 * Si las fechas no se pueden parsear, registra el error en el log del módulo
+	 * y devuelve '' (sin filtro de fecha) en vez de dejar que la excepción tumbe
+	 * el endpoint completo.
+	 *
+	 * @param array $params Debe contener date_init y date_end.
+	 * @return string
+	 */
+	private static function build_date_filter($params)
+	{
+		if (empty($params["date_init"]) || $params["date_init"] == 0) {
+			return '';
+		}
+
+		try {
+			$from = self::parse_date_flexible($params["date_init"]);
+			$end = self::parse_date_flexible($params["date_end"]);
+			return "between  '" . $from . "'  and '" . $end . "'";
+		} catch (Exception $e) {
+			if (class_exists('AdminClientifyController')) {
+				AdminClientifyController::addLog(
+					'error',
+					'Fechas invalidas en filtro de sincronizacion (date_init=' . $params["date_init"] . ', date_end=' . $params["date_end"] . '): ' . $e->getMessage()
+				);
+			}
+			return '';
+		}
+	}
+
+	/**
 	 * Obtains the store name in a manner compatible with PrestaShop 1.7/8/9.
 	 */
 	private function getShopName($idShop)
@@ -663,7 +742,7 @@ class AdminCustomClientifyEndPoint
 
 		$page = (int) (!isset($params["page"])) ? 1 : $params["page"];
 		$per_page = (int) $params["per_page"];
-		$date_null = $params["date_init"] != 0 ? "between  '" . date("Y-m-d", strtotime($params["date_init"])) . "'  and '" . date("Y-m-d", strtotime($params["date_end"])) . "'" : '';
+		$date_null = self::build_date_filter($params);
 		$limit = $per_page != 0 ? 'LIMIT ' . (($page - 1) * $per_page) . ' , ' . $per_page . '' : '';
 
 		$get_data = "SELECT * FROM " . _DB_PREFIX_ . "configuration_clientify";
@@ -872,18 +951,18 @@ class AdminCustomClientifyEndPoint
 		$all = array();
 		$page = (int) (!isset($params["page"])) ? 1 : $params["page"];
 		$per_page = (int) $params["per_page"];
-		$date_null = $params["date_init"] != 0 ? "between  '" . date("Y-m-d", strtotime($params["date_init"])) . "'  and '" . date("Y-m-d", strtotime($params["date_end"])) . "'" : '';
+		$date_null = self::build_date_filter($params);
 		$limit = $per_page != 0 ? 'LIMIT ' . (($page - 1) * $per_page) . ' , ' . $per_page . '' : '';
 
 		// Consulta SQL unificada para obtener los IDs de orden
 		$query = "SELECT DISTINCT o.id_order 
 				  FROM " . _DB_PREFIX_ . "orders o
 				  LEFT JOIN " . _DB_PREFIX_ . "customer g ON (o.id_customer = g.id_customer) 
-				  WHERE DATE(invoice_date) " . $date_null . " AND o.id_shop = " . $this->data_config['id_shop'] . "
+				  WHERE DATE(o.date_add) " . $date_null . " AND o.id_shop = " . $this->data_config['id_shop'] . "
 				  ORDER BY o.id_order DESC " . $limit;
 
 		// Ejecutar la consulta SQL
-		$order_ids = Db::getInstance()->executes($query);
+		$order_ids = Db::getInstance()->executeS($query);
 
 		// Obtener el número total de resultados sin usar count()
 		$total = count($order_ids);
@@ -1078,7 +1157,7 @@ class AdminCustomClientifyEndPoint
 		$all = array();
 		$page = (int) (!isset($params["page"])) ? 1 : $params["page"];
 		$per_page = (int) $params["per_page"];
-		$date_null = $params["date_init"] != 0 ? "between  '" . date("Y-m-d", strtotime($params["date_init"])) . "'  and '" . date("Y-m-d", strtotime($params["date_end"])) . "'" : '';
+		$date_null = self::build_date_filter($params);
 		$limit = $per_page != 0 ? 'LIMIT ' . (($page - 1) * $per_page) . ' , ' . $per_page . '' : '';
 
 
@@ -1182,7 +1261,7 @@ class AdminCustomClientifyEndPoint
 		$new_categories = [];
 		$page = (int) (!isset($params["page"])) ? 1 : $params["page"];
 		$per_page = (int) $params["per_page"];
-		$date_null = $params["date_init"] != 0 ? "between  '" . date("Y-m-d", strtotime($params["date_init"])) . "'  and '" . date("Y-m-d", strtotime($params["date_end"])) . "'" : '';
+		$date_null = self::build_date_filter($params);
 		$limit = $per_page != 0 ? 'LIMIT ' . (($page - 1) * $per_page) . ' , ' . $per_page . '' : '';
 
 		$products = Db::getInstance()->executes(
@@ -1411,7 +1490,7 @@ class AdminCustomClientifyEndPoint
 
 		$page = (int) (!isset($params["page"])) ? 1 : $params["page"];
 		$per_page = (int) $params["per_page"];
-		$date_null = $params["date_init"] != 0 ? "between  '" . date("Y-m-d", strtotime($params["date_init"])) . "'  and '" . date("Y-m-d", strtotime($params["date_end"])) . "'" : '';
+		$date_null = self::build_date_filter($params);
 		$limit = $per_page != 0 ? 'LIMIT ' . (($page - 1) * $per_page) . ' , ' . $per_page . '' : '';
 
 		$get_data = "SELECT * FROM " . _DB_PREFIX_ . "configuration_clientify";
@@ -1627,17 +1706,17 @@ class AdminCustomClientifyEndPoint
 		$result_sync = array();
 		$page = (int) (!isset($params["page"])) ? 1 : $params["page"];
 		$per_page = (int) $params["per_page"];
-		$date_null = $params["date_init"] != 0 ? "between  '" . date("Y-m-d", strtotime($params["date_init"])) . "'  and '" . date("Y-m-d", strtotime($params["date_end"])) . "'" : '';
+		$date_null = self::build_date_filter($params);
 		$limit = $per_page != 0 ? 'LIMIT ' . (($page - 1) * $per_page) . ' , ' . $per_page . '' : '';
 
 		// Consulta SQL unificada para obtener los IDs de orden
 		$query = "SELECT DISTINCT o.id_order 
 				  FROM " . _DB_PREFIX_ . "orders o
 				  LEFT JOIN " . _DB_PREFIX_ . "customer g ON (o.id_customer = g.id_customer) 
-				  WHERE DATE(invoice_date) " . $date_null . " AND o.id_shop = " . $this->data_config['id_shop'] . "
+				  WHERE DATE(o.date_add) " . $date_null . " AND o.id_shop = " . $this->data_config['id_shop'] . "
 				  ORDER BY o.id_order DESC " . $limit;
 		// Ejecutar la consulta SQL
-		$order_ids = Db::getInstance()->executes($query);
+		$order_ids = Db::getInstance()->executeS($query);
 
 		// Obtener el número total de resultados sin usar count()
 		$total = count($order_ids);
@@ -1834,7 +1913,7 @@ class AdminCustomClientifyEndPoint
 		$result_sync = array();
 		$page = (int) (!isset($params["page"])) ? 1 : $params["page"];
 		$per_page = (int) $params["per_page"];
-		$date_null = $params["date_init"] != 0 ? "between  '" . date("Y-m-d", strtotime($params["date_init"])) . "'  and '" . date("Y-m-d", strtotime($params["date_end"])) . "'" : '';
+		$date_null = self::build_date_filter($params);
 		$limit = $per_page != 0 ? 'LIMIT ' . (($page - 1) * $per_page) . ' , ' . $per_page . '' : '';
 		$store_url = $this->GetApiUrl($this->data_config['id_shop']);
 

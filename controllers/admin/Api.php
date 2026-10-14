@@ -19,10 +19,6 @@ if (!class_exists('ClientifyApi')) {
         {
             $maxRetries = 3;
             $retryDelay = 1;
-            // $logPath = __DIR__ . '/../logs/';
-            // if (!is_dir($logPath)) {
-            //     mkdir($logPath, 0755, true);
-            // }
             for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
                 $curl = curl_init();
                 curl_setopt_array($curl, array(
@@ -47,8 +43,9 @@ if (!class_exists('ClientifyApi')) {
                 curl_close($curl);
                 if ($err) {
                     $errorMsg = "cURL Error: " . $err;
-                    $log = date('Y-m-d H:i:s') . " - Attempt $attempt - $errorMsg\n";
-                    file_put_contents($logPath . 'api_errors.log', $log, FILE_APPEND);
+                    if (class_exists('AdminClientifyController')) {
+                        AdminClientifyController::addLog('error', "[$url] Intento $attempt - $errorMsg");
+                    }
                     if ($attempt < $maxRetries) {
                         sleep($retryDelay * $attempt);
                         continue;
@@ -56,8 +53,9 @@ if (!class_exists('ClientifyApi')) {
                 } else {
                     if ($httpCode >= 400) {
                         $errorMsg = "HTTP Error: " . $httpCode . " | Response: " . substr($response, 0, 150);
-                        $log = date('Y-m-d H:i:s') . " - HTTP $httpCode - $errorMsg\n";
-                        file_put_contents($logPath . 'api_errors.log', $log, FILE_APPEND);
+                        if (class_exists('AdminClientifyController')) {
+                            AdminClientifyController::addLog('error', "[$url] HTTP $httpCode - $errorMsg");
+                        }
                         return ['success' => false, 'error' => $errorMsg, 'http_code' => $httpCode];
                     }
                     return ['success' => true, 'response' => $response, 'http_code' => $httpCode];

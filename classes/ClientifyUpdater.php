@@ -87,6 +87,7 @@ class ClientifyUpdater
         $release = self::getLatestRelease();
 
         if (!$release) {
+            AdminClientifyController::addLog('error', 'Auto-update: no se pudo obtener informacion de la ultima version desde GitHub.');
             return ['success' => false, 'message' => 'No se pudo obtener información de la última versión.'];
         }
 
@@ -95,6 +96,7 @@ class ClientifyUpdater
         }
 
         if (!$release['zip_url']) {
+            AdminClientifyController::addLog('error', 'Auto-update: la release ' . $release['version'] . ' no tiene ningun asset .zip.');
             return ['success' => false, 'message' => 'No se encontró el archivo ZIP en la release.'];
         }
 
@@ -116,6 +118,7 @@ class ClientifyUpdater
         curl_close($ch);
 
         if ($httpCode !== 200 || !$zipData) {
+            AdminClientifyController::addLog('error', 'Auto-update: fallo al descargar el ZIP (HTTP ' . $httpCode . ') desde ' . $release['zip_url']);
             self::cleanTmp($tmpDir);
             return ['success' => false, 'message' => 'Error al descargar el archivo de actualización (HTTP ' . $httpCode . ').'];
         }
@@ -125,6 +128,7 @@ class ClientifyUpdater
         // Extraer ZIP
         $zip = new ZipArchive();
         if ($zip->open($zipFile) !== true) {
+            AdminClientifyController::addLog('error', 'Auto-update: no se pudo abrir el ZIP descargado (' . $zipFile . ').');
             self::cleanTmp($tmpDir);
             return ['success' => false, 'message' => 'No se pudo abrir el archivo ZIP descargado.'];
         }
@@ -145,6 +149,7 @@ class ClientifyUpdater
         }
 
         if (!is_dir($moduleSource)) {
+            AdminClientifyController::addLog('error', 'Auto-update: estructura del ZIP invalida, no se encontro la carpeta del modulo en ' . $extractDir);
             self::cleanTmp($tmpDir);
             return ['success' => false, 'message' => 'Estructura del ZIP inválida: no se encontró la carpeta del módulo.'];
         }
@@ -174,6 +179,8 @@ class ClientifyUpdater
         Configuration::deleteByName(self::CACHE_KEY);
         Tools::clearSmartyCache();
         self::clearPsCache();
+
+        AdminClientifyController::addLog('success', 'Auto-update: modulo actualizado a la version ' . $release['version'] . ' correctamente.');
 
         return ['success' => true, 'message' => 'Módulo actualizado a la versión ' . $release['version'] . ' correctamente.'];
     }

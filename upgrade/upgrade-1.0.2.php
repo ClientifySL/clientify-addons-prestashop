@@ -28,16 +28,27 @@ if (!defined('_PS_VERSION_')) {
 }
 
 /**
- * This function updates your module from previous versions to the version 1.1,
+ * This function updates your module from previous versions to the version 1.0.2,
  * usefull when you modify your database, or register a new hook ...
  * Don't forget to create one file per version.
  */
-function upgrade_module_1_1_0($module)
+function upgrade_module_1_0_2($module)
 {
     /*
-     * Do everything you want right there,
-     * You could add a column in one of your module's tables
+     * Asegura la tabla de logs propia del plugin (ps_clientify_logs).
+     * Es idempotente (CREATE TABLE IF NOT EXISTS) y ya se ejecuta de forma
+     * lazy en cada carga del panel admin (AdminClientifyController::ensureLogsTable()),
+     * pero se deja explícita aquí también para que quede registrada en el
+     * historial de migraciones del módulo, como corresponde en un upgrade de versión.
      */
-
-    return true;
+    return Db::getInstance()->execute(
+        'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'clientify_logs` (
+            `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            `type` VARCHAR(20) NOT NULL DEFAULT \'info\',
+            `message` TEXT NOT NULL,
+            `created_at` DATETIME NOT NULL,
+            PRIMARY KEY (`id`),
+            KEY `idx_created_at` (`created_at`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8;'
+    );
 }
