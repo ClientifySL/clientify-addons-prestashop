@@ -1,0 +1,7 @@
+# Credenciales reales de integraciones (Slack/Notion/SMTP) usadas por .claude/skills/announce-change.
+# .env.local.example SI se versiona (plantilla sin secretos).
+.env.local
+.env.*.local
+
+# Generado por .github/workflows/release.yml al construir el ZIP localmente.
+build/
