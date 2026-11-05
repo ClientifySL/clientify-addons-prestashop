@@ -94,6 +94,61 @@ class AdminCustomClientifyEndPoint
 	}
 
 	/**
+	 * Devuelve los registros de `ps_clientify_logs` (eventos propios del plugin:
+	 * fallos de autenticacion, errores de sincronizacion, auto-updater, etc).
+	 *
+	 * Params soportados (todos opcionales):
+	 *   - date_init / date_end: filtra por created_at usando parse_date_flexible().
+	 *   - type: 'error' | 'success' | 'info' ... filtra por tipo exacto.
+	 *   - per_page / page: paginacion simple (por defecto 100 / 1).
+	 *
+	 * @param array $params
+	 * @return array
+	 */
+	public function get_logs($params = array())
+	{
+		if (class_exists('AdminClientifyController')) {
+			AdminClientifyController::ensureLogsTable();
+		}
+
+		$where = '1';
+
+		$date_filter = self::build_date_filter(array(
+			'date_init' => isset($params['date_init']) ? $params['date_init'] : 0,
+			'date_end' => isset($params['date_end']) ? $params['date_end'] : 0,
+		));
+		if ($date_filter !== '') {
+			$where .= ' AND DATE(created_at) ' . $date_filter;
+		}
+
+		if (!empty($params['type'])) {
+			$where .= " AND type = '" . pSQL($params['type']) . "'";
+		}
+
+		$per_page = !empty($params['per_page']) ? (int) $params['per_page'] : 100;
+		$page = !empty($params['page']) ? (int) $params['page'] : 1;
+		$offset = ($page - 1) * $per_page;
+
+		$total = (int) Db::getInstance()->getValue(
+			'SELECT COUNT(*) FROM `' . _DB_PREFIX_ . 'clientify_logs` WHERE ' . $where
+		);
+
+		$rows = Db::getInstance()->executeS(
+			'SELECT id, type, message, created_at FROM `' . _DB_PREFIX_ . 'clientify_logs`
+			 WHERE ' . $where . '
+			 ORDER BY created_at DESC
+			 LIMIT ' . (int) $per_page . ' OFFSET ' . (int) $offset
+		);
+
+		return array(
+			'total' => $total,
+			'page' => $page,
+			'per_page' => $per_page,
+			'data' => $rows !== false ? $rows : array(),
+		);
+	}
+
+	/**
 	 * Obtains the store name in a manner compatible with PrestaShop 1.7/8/9.
 	 */
 	private function getShopName($idShop)
@@ -502,6 +557,7 @@ class AdminCustomClientifyEndPoint
 					}
 				}
 				$items[] = array(
+					'id' => (int) $order_product['product_attribute_id'],
 					'name' => $product_name,
 					'description' => isset($product->description[1]) ? trim(strip_tags($product->description[1])) : '',
 					'category' => $join_cat,
@@ -525,6 +581,7 @@ class AdminCustomClientifyEndPoint
 				}
 
 				$items[] = array(
+					'id' => (int) $order_product['id_product'],
 					'name' => $product_name,
 					'description' => $product->description[1],
 					'category' => $join_cat,
@@ -879,6 +936,7 @@ class AdminCustomClientifyEndPoint
 						}
 					}
 					$items[] = array(
+						'id' => (int) $order_product['id_product_attribute'],
 						'name' => $product_name,
 						'description' => isset($product->description[1]) ? trim(strip_tags($product->description[1])) : '',
 						'category' => $join_cat,
@@ -900,6 +958,7 @@ class AdminCustomClientifyEndPoint
 					}
 
 					$items[] = array(
+						'id' => (int) $order_product['id_product'],
 						'name' => $product_name,
 						'description' => $product->description[1],
 						'category' => $join_cat,
@@ -1080,6 +1139,7 @@ class AdminCustomClientifyEndPoint
 						}
 					}
 					$items[] = array(
+						'id' => (int) $order_product['product_attribute_id'],
 						'name' => $product_name,
 						'description' => isset($product->description[1]) ? trim(strip_tags($product->description[1])) : '',
 						'category' => $join_cat,
@@ -1103,6 +1163,7 @@ class AdminCustomClientifyEndPoint
 					}
 
 					$items[] = array(
+						'id' => (int) $order_product['id_product'],
 						'name' => $product_name,
 						'description' => isset($product->description[1]) ? trim(strip_tags($product->description[1])) : '',
 						'category' => $join_cat,
@@ -1628,6 +1689,7 @@ class AdminCustomClientifyEndPoint
 						}
 					}
 					$items[] = array(
+						'id' => (int) $order_product['id_product_attribute'],
 						'name' => $product_name,
 						'description' => isset($product->description[1]) ? trim(strip_tags($product->description[1])) : '',
 						'category' => $join_cat,
@@ -1651,6 +1713,7 @@ class AdminCustomClientifyEndPoint
 					}
 
 					$items[] = array(
+						'id' => (int) $order_product['id_product'],
 						'name' => $product_name,
 						'description' => $product->description[1],
 						'category' => $join_cat,
@@ -1833,6 +1896,7 @@ class AdminCustomClientifyEndPoint
 						}
 					}
 					$items[] = array(
+						'id' => (int) $order_product['product_attribute_id'],
 						'name' => $product_name,
 						'description' => isset($product->description[1]) ? trim(strip_tags($product->description[1])) : '',
 						'category' => $join_cat,
@@ -1856,6 +1920,7 @@ class AdminCustomClientifyEndPoint
 					}
 
 					$items[] = array(
+						'id' => (int) $order_product['id_product'],
 						'name' => $product_name,
 						'description' => $product->description[1],
 						'category' => $join_cat,
