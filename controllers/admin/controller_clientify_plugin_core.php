@@ -94,6 +94,27 @@ class AdminCustomClientifyEndPoint
 	}
 
 	/**
+	 * Igual que build_date_filter() pero devuelve "AND <columna> BETWEEN 'Y-m-d 00:00:00' AND 'Y-m-d 23:59:59'"
+	 * sobre la columna sin envolver en DATE(), para que MySQL pueda usar el indice
+	 * (id_shop, date_add) de ps_cart en vez de recorrer la tabla entera en cada sondeo.
+	 *
+	 * @param array  $params Debe contener date_init y date_end.
+	 * @param string $column Columna datetime a filtrar (ej. t1.date_add).
+	 * @return string
+	 */
+	private static function build_datetime_range_filter($params, $column)
+	{
+		$date_filter = self::build_date_filter($params);
+		if ($date_filter === '') {
+			return '';
+		}
+
+		$from = self::parse_date_flexible($params["date_init"]);
+		$end = self::parse_date_flexible($params["date_end"]);
+		return " AND " . $column . " BETWEEN '" . $from . " 00:00:00' AND '" . $end . " 23:59:59' ";
+	}
+
+	/**
 	 * Devuelve los registros de `ps_clientify_logs` (eventos propios del plugin:
 	 * fallos de autenticacion, errores de sincronizacion, auto-updater, etc).
 	 *
@@ -799,7 +820,7 @@ class AdminCustomClientifyEndPoint
 
 		$page = (int) (!isset($params["page"])) ? 1 : $params["page"];
 		$per_page = (int) $params["per_page"];
-		$date_null = self::build_date_filter($params);
+		$date_null = self::build_datetime_range_filter($params, 't1.date_add');
 		$limit = $per_page != 0 ? 'LIMIT ' . (($page - 1) * $per_page) . ' , ' . $per_page . '' : '';
 
 		$get_data = "SELECT * FROM " . _DB_PREFIX_ . "configuration_clientify";
@@ -812,15 +833,26 @@ class AdminCustomClientifyEndPoint
 		FROM ' . _DB_PREFIX_ . 'cart t1
 		LEFT JOIN ' . _DB_PREFIX_ . 'orders t2 ON (t2.id_cart = t1.id_cart)
 		LEFT JOIN ' . _DB_PREFIX_ . 'cart_product t3 ON (t3.id_cart = t1.id_cart)
-		WHERE t2.id_cart IS null and t3.id_cart=t1.id_cart and DATE(t1.date_add)  ' . $date_null . ' and t1.id_shop = ' . $this->data_config['id_shop'] . ' ' . $limit;
+		WHERE t2.id_cart IS null and t3.id_cart=t1.id_cart ' . $date_null . ' and t1.id_shop = ' . $this->data_config['id_shop'] . ' ' . $limit;
 
 		$cart_ids = Db::getInstance()->executes(
 			$sq_data
 		);
 
-		if (isset($per_page)) {
-			$to_per = $per_page != '' ? count($cart_ids) / $per_page : 0;
-			$total_pages = is_float($to_per) ? intval($to_per + 1) : $to_per;
+		// Total de paginas sobre el total de carritos (no sobre la pagina actual), para que
+		// Clientify pueda paginar con la cabecera Link: la respuesta solo incluye carritos con
+		// contacto, asi que una pagina vacia no significa que no haya mas.
+		// Solo se calcula en la primera pagina: Clientify lee el total de ahi y no lo vuelve a pedir.
+		$total_pages = '';
+		if ($per_page > 0 && (int) $page === 1) {
+			$total = (int) Db::getInstance()->getValue(
+				'SELECT COUNT(DISTINCT t1.id_cart)
+				FROM ' . _DB_PREFIX_ . 'cart t1
+				LEFT JOIN ' . _DB_PREFIX_ . 'orders t2 ON (t2.id_cart = t1.id_cart)
+				INNER JOIN ' . _DB_PREFIX_ . 'cart_product t3 ON (t3.id_cart = t1.id_cart)
+				WHERE t2.id_cart IS null ' . $date_null . ' and t1.id_shop = ' . (int) $this->data_config['id_shop']
+			);
+			$total_pages = (int) ceil($total / $per_page);
 		}
 		foreach ($cart_ids as $cart_id) {
 			$sql = 'SELECT t1.*, t3.*
@@ -1027,7 +1059,7 @@ class AdminCustomClientifyEndPoint
 		$total = count($order_ids);
 
 		// Calcular el número total de páginas
-		if (isset($per_page) && $per_page != '') {
+		if ($per_page > 0) {
 			$total_pages = ceil($total / $per_page);
 		} else {
 			$total_pages = 0;
@@ -1228,7 +1260,7 @@ class AdminCustomClientifyEndPoint
 		);
 
 		if (isset($per_page)) {
-			$to_per = $per_page != '' ? count($contacts) / $per_page : 0;
+			$to_per = $per_page > 0 ? count($contacts) / $per_page : 0;
 			$total_pages = is_float($to_per) ? intval($to_per + 1) : $to_per;
 		}
 
@@ -1331,7 +1363,7 @@ class AdminCustomClientifyEndPoint
 		);
 
 		if (isset($per_page)) {
-			$to_per = $per_page != '' ? count($products) / $per_page : 0;
+			$to_per = $per_page > 0 ? count($products) / $per_page : 0;
 			$total_pages = is_float($to_per) ? intval($to_per + 1) : $to_per;
 		}
 
@@ -1551,7 +1583,7 @@ class AdminCustomClientifyEndPoint
 
 		$page = (int) (!isset($params["page"])) ? 1 : $params["page"];
 		$per_page = (int) $params["per_page"];
-		$date_null = self::build_date_filter($params);
+		$date_null = self::build_datetime_range_filter($params, 't1.date_add');
 		$limit = $per_page != 0 ? 'LIMIT ' . (($page - 1) * $per_page) . ' , ' . $per_page . '' : '';
 
 		$get_data = "SELECT * FROM " . _DB_PREFIX_ . "configuration_clientify";
@@ -1564,14 +1596,14 @@ class AdminCustomClientifyEndPoint
 		FROM ' . _DB_PREFIX_ . 'cart t1
 		LEFT JOIN ' . _DB_PREFIX_ . 'orders t2 ON (t2.id_cart = t1.id_cart)
 		LEFT JOIN ' . _DB_PREFIX_ . 'cart_product t3 ON (t3.id_cart = t1.id_cart)
-		WHERE t2.id_cart IS null and t3.id_cart=t1.id_cart and DATE(t1.date_add)  ' . $date_null . ' and t1.id_shop = ' . $this->data_config['id_shop'] . ' ' . $limit;
+		WHERE t2.id_cart IS null and t3.id_cart=t1.id_cart ' . $date_null . ' and t1.id_shop = ' . $this->data_config['id_shop'] . ' ' . $limit;
 
 		$cart_ids = Db::getInstance()->executes(
 			$sq_data
 		);
 
 		if (isset($per_page)) {
-			$to_per = $per_page != '' ? count($cart_ids) / $per_page : 0;
+			$to_per = $per_page > 0 ? count($cart_ids) / $per_page : 0;
 			$total_pages = is_float($to_per) ? intval($to_per + 1) : $to_per;
 		}
 		foreach ($cart_ids as $cart_id) {
@@ -1643,7 +1675,7 @@ class AdminCustomClientifyEndPoint
 					$discount = 0;
 				} else {
 					// Calculamos el porcentaje de descuento
-					$discount = ($cart_details['total_discounts'] * 100) / $cart_details['total_products_wt'];
+					$discount = $cart_details['total_products_wt'] > 0 ? ($cart_details['total_discounts'] * 100) / $cart_details['total_products_wt'] : 0;
 
 				}
 
@@ -1759,7 +1791,10 @@ class AdminCustomClientifyEndPoint
 
 
 		}
-		return $all;
+		return array(
+			'data' => $all,
+			'Link' => $total_pages,
+		);
 	}
 
 	public function sync_all_orders($params)
@@ -1785,7 +1820,7 @@ class AdminCustomClientifyEndPoint
 		$total = count($order_ids);
 
 		// Calcular el número total de páginas
-		if (isset($per_page) && $per_page != '') {
+		if ($per_page > 0) {
 			$total_pages = ceil($total / $per_page);
 		} else {
 			$total_pages = 0;
@@ -1988,7 +2023,7 @@ class AdminCustomClientifyEndPoint
 		);
 
 		if (isset($per_page)) {
-			$to_per = $per_page != '' ? count($contacts) / $per_page : 0;
+			$to_per = $per_page > 0 ? count($contacts) / $per_page : 0;
 			$total_pages = is_float($to_per) ? intval($to_per + 1) : $to_per;
 		}
 
