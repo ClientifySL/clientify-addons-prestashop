@@ -68,7 +68,7 @@ class Clientify extends Module
     {
         $this->name = 'clientify';
         $this->tab = 'administration';
-        $this->version = '1.0.2';
+        $this->version = '1.0.3';
         $this->author = 'Clientify SL';
         $this->need_instance = 1;
 
