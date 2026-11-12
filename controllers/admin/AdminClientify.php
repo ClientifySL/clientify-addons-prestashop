@@ -113,6 +113,8 @@ class AdminClientifyController extends ModuleAdminController
             'update_available'     => $updateAvailable,
             'latest_release'       => $latestRelease,
             'current_version'      => $module->version,
+            'api_url'              => ClientifyApi::getApiUrl(),
+            'api_url_is_custom'    => ClientifyApi::getApiUrl() !== ClientifyApi::DEFAULT_API_URL,
         ));
         $this->setTemplate('adminclientify.tpl');
 

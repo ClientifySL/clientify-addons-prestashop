@@ -186,6 +186,9 @@ class Clientify extends Module
     {
         Configuration::deleteByName('CLIENTIFY_LIVE_MODE');
         Configuration::deleteByName('CLIENTIFY_MIGRATED_VERSION');
+        // La URL de pruebas no debe sobrevivir a una reinstalacion: si no, una tienda
+        // reinstalada seguiria enviando a un entorno de pruebas sin que se vea.
+        Configuration::deleteByName('CLIENTIFY_API_URL');
 
         $sql_clean = "DROP TABLE IF EXISTS " . _DB_PREFIX_ . "configuration_clientify";
         Db::getInstance()->execute($sql_clean);

@@ -11,6 +11,15 @@
 
 <div class="clientify_conten">
 
+	{* ===== API NO PRODUCTIVA (CLIENTIFY_API_URL) ===== *}
+	{if $api_url_is_custom}
+	<div class="alert alert-danger">
+		<strong>{l s='Este módulo no está conectado a la API de producción de Clientify.' mod='clientify'}</strong>
+		{l s='Conectando a' mod='clientify'}: <code>{$api_url|escape:'html':'UTF-8'}</code>
+		({l s='configuración CLIENTIFY_API_URL; bórrala para volver a producción' mod='clientify'})
+	</div>
+	{/if}
+
 	{* ===== UPDATE BANNER ===== *}
 	{if $update_available && $latest_release}
 	<div class="alert alert-warning" id="clientify-update-banner" style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
