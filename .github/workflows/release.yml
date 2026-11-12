@@ -18,23 +18,17 @@ jobs:
 
       # El auto-updater instala el ultimo release en todas las tiendas, incluidas las
       # PrestaShop 1.7 con PHP 5.6: un error de sintaxis de PHP nuevo las rompe.
-      - name: Setup PHP 5.6 (minimo de PrestaShop 1.7)
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '5.6'
-          coverage: none
+      # Se usa Docker y el PHP del runner en vez de acciones de terceros, que la
+      # organizacion no permite (startup_failure).
+      - name: Lint PHP 5.6 (minimo de PrestaShop 1.7)
+        run: |
+          docker run --rm -v "$PWD":/app -w /app php:5.6-cli \
+            sh -c "find . -name '*.php' -not -path './.git/*' -print0 | xargs -0 -n1 php -l > /dev/null"
 
-      - name: Lint PHP 5.6
-        run: find . -name '*.php' -not -path './.git/*' -print0 | xargs -0 -n1 php -l > /dev/null
-
-      - name: Setup PHP 8.3
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.3'
-          coverage: none
-
-      - name: Lint PHP 8.3
-        run: find . -name '*.php' -not -path './.git/*' -print0 | xargs -0 -n1 php -l > /dev/null
+      - name: Lint PHP del runner (8.x)
+        run: |
+          php -v | head -1
+          find . -name '*.php' -not -path './.git/*' -print0 | xargs -0 -n1 php -l > /dev/null
 
       - name: Get version from tag
         id: get_version
