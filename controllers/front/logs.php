@@ -8,21 +8,10 @@ class ClientifyLogsModuleFrontController extends ModuleFrontController
         include_once(__DIR__ . '/../admin/controller_clientify_plugin_core.php');
         $customApi = new AdminCustomClientifyEndPoint();
 
-        $storeKey = '';
-        if (isset($_SERVER['HTTP_STOREKEY'])) {
-            $storeKey = strtolower($_SERVER['HTTP_STOREKEY']);
-        } else {
-            include_once(__DIR__ . '/getHeaders.php');
-            $auth_dat = getallheaders();
-            if (isset($auth_dat['storekey'])) {
-                $storeKey = strtolower($auth_dat['storekey']);
-            } elseif (isset($auth_dat['Storekey'])) {
-                $storeKey = strtolower($auth_dat['Storekey']);
-            }
-        }
+        $storeKey = AdminCustomClientifyEndPoint::getRequestStoreKey();
 
         if ($this->module->active) {
-            if ($storeKey === $results_global[0]['clientify_store_key']) {
+            if ($customApi->isValidStoreKey($storeKey)) {
                 switch ($_SERVER['REQUEST_METHOD']) {
                     case 'GET':
                         $params = array(

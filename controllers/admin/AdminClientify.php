@@ -1,11 +1,5 @@
 <?php
 
-use GuzzleHttp\Message\Request;
-
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
 if (!defined('_PS_VERSION_')) {
     exit;
 }
@@ -13,18 +7,6 @@ include_once(__DIR__ . '/../../clientify.php');
 include_once(__DIR__ . '/Api.php');
 include_once(__DIR__ . '/controller_clientify_plugin_core.php');
 include_once(__DIR__ . '/../../classes/ClientifyUpdater.php');
-
-$action = Tools::getValue('action');
-$customApi = new AdminCustomClientifyEndPoint();
-
-    switch ($action) {
-        case 'get_data': {
-            $customApi->get_contact(
-                Tools::getValue('email')
-            );
-            break;
-        }
-    }
 
 class AdminClientifyController extends ModuleAdminController
 {
@@ -42,11 +24,6 @@ class AdminClientifyController extends ModuleAdminController
         $this->assign();
     
     }
-
-    public function hookactionCustomerAccountAdd  (){
-		
-      
-        }
 
     public static function ensureLogsTable()
     {
@@ -191,10 +168,10 @@ class AdminClientifyController extends ModuleAdminController
             );
 
             $data_config = array(
-                'id_shop' => $id_shop,
-                'clientify_api_key' => $key,
-                'clientify_order_status' => $order_sta,
-                'clientify_cart_hour' => $ac_time,
+                'id_shop' => (int) $id_shop,
+                'clientify_api_key' => pSQL($key),
+                'clientify_order_status' => pSQL($order_sta),
+                'clientify_cart_hour' => pSQL($ac_time),
                 'clientify_store_key' => $key_uid,
                 'clientify_module_status' => 0
             );
@@ -206,10 +183,10 @@ class AdminClientifyController extends ModuleAdminController
             }
             if ($status == 'success') {
                 $data_config = array(
-                    'id_shop' => $id_shop,
-                    'clientify_api_key' => $key,
-                    'clientify_order_status' => $order_sta,
-                    'clientify_cart_hour' => $ac_time,
+                    'id_shop' => (int) $id_shop,
+                    'clientify_api_key' => pSQL($key),
+                    'clientify_order_status' => pSQL($order_sta),
+                    'clientify_cart_hour' => pSQL($ac_time),
                     'clientify_store_key' => $key_uid,
                     'clientify_module_status' => 1
                 );
@@ -323,6 +300,8 @@ class AdminClientifyController extends ModuleAdminController
     public function ajaxProcesscheckUpdate()
     {
         $module  = new Clientify();
+        // Comprobacion manual: se ignora la cache (que tambien guarda los fallos de conexion).
+        Configuration::deleteByName(ClientifyUpdater::CACHE_KEY);
         $release = ClientifyUpdater::getLatestRelease();
         $hasUpdate = $release && version_compare($release['version'], $module->version, '>');
         exit(json_encode([

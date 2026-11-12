@@ -15,6 +15,35 @@ class AdminCustomClientifyEndPoint
 	}
 
 	/**
+	 * Lee la cabecera "storekey" que envia Clientify en las llamadas a los endpoints del modulo.
+	 */
+	public static function getRequestStoreKey()
+	{
+		if (isset($_SERVER['HTTP_STOREKEY'])) {
+			return (string) $_SERVER['HTTP_STOREKEY'];
+		}
+		include_once(__DIR__ . '/../front/getHeaders.php');
+		foreach (getallheaders() as $name => $value) {
+			if (strtolower($name) === 'storekey') {
+				return (string) $value;
+			}
+		}
+		return '';
+	}
+
+	/**
+	 * Compara la storekey recibida con la guardada en tiempo constante. Una storekey
+	 * vacia nunca es valida (antes '' === '' dejaba pasar peticiones sin cabecera si la
+	 * clave guardada estaba vacia).
+	 */
+	public function isValidStoreKey($store_key)
+	{
+		$expected = isset($this->data_config['clientify_store_key']) ? strtolower((string) $this->data_config['clientify_store_key']) : '';
+		$store_key = strtolower((string) $store_key);
+		return $expected !== '' && $store_key !== '' && hash_equals($expected, $store_key);
+	}
+
+	/**
 	 * Parsea una fecha recibida en cualquiera de los formatos soportados y la normaliza
 	 * a $output_format (por defecto Y-m-d). Evita la ambigüedad de strtotime() entre
 	 * DD-MM-YYYY y YYYY-MM-DD probando primero una lista explícita de formatos conocidos.
@@ -291,8 +320,12 @@ class AdminCustomClientifyEndPoint
 
 			if (is_array($registered)) {
 				foreach ($registered as $row) {
-					if (array_key_exists($row['name'], $hooks)) {
-						$hooks[$row['name']] = true;
+					// ps_hook guarda el nombre con su capitalizacion (displayFooter), pero los
+					// nombres de hook no distinguen mayusculas: se compara sin distinguirlas.
+					foreach (array_keys($hooks) as $hook_name) {
+						if (strcasecmp($hook_name, $row['name']) === 0) {
+							$hooks[$hook_name] = true;
+						}
 					}
 				}
 			}
@@ -372,8 +405,25 @@ class AdminCustomClientifyEndPoint
 		}
 	}
 
+	/**
+	 * El consentimiento se toma del log del modulo oficial psgdpr. En tiendas sin ese modulo
+	 * (PS 1.7.0-1.7.2 o desinstalado) la tabla no existe y la consulta fallaria: se usa
+	 * entonces la suscripcion a la newsletter, el criterio que se usaba antes de CTF-1874.
+	 */
 	private function has_gdpr_consent($id_customer)
 	{
+		static $psgdpr_table_exists = null;
+		if ($psgdpr_table_exists === null) {
+			$psgdpr_table_exists = (bool) Db::getInstance()->executeS(
+				"SHOW TABLES LIKE '" . pSQL(_DB_PREFIX_) . "psgdpr_log'"
+			);
+		}
+
+		if (!$psgdpr_table_exists) {
+			$customer = new Customer((int) $id_customer);
+			return (bool) $customer->newsletter;
+		}
+
 		$result = Db::getInstance()->getValue(
 			'SELECT id_gdpr_log FROM ' . _DB_PREFIX_ . 'psgdpr_log WHERE id_customer = ' . (int) $id_customer
 		);
@@ -488,7 +538,7 @@ class AdminCustomClientifyEndPoint
 				FROM " . _DB_PREFIX_ . "category_product cp
 				INNER JOIN " . _DB_PREFIX_ . "category c ON cp.id_category = c.id_category
 				INNER JOIN " . _DB_PREFIX_ . "category_lang cl ON c.id_category = cl.id_category
-				WHERE cp.id_product = " . $order_product['id_product'] . " AND cl.id_lang = 1"
+				WHERE cp.id_product = " . $order_product['id_product'] . " AND cl.id_lang = " . $this->lang_id()
 			);
 
 			if (is_array($terms)) {
@@ -564,7 +614,7 @@ class AdminCustomClientifyEndPoint
 					$order_product['product_attribute_id']
 				);
 				$product_name = ProductCore::getProductName($order_product['id_product'], $order_product['product_attribute_id']);
-				$combination_images = ProductCore::getCombinationImageById((int) $order_product['product_attribute_id'], 1);
+				$combination_images = ProductCore::getCombinationImageById((int) $order_product['product_attribute_id'], $this->lang_id());
 
 				if (!empty($combination_images)) {
 					$image = new Image($combination_images['id_image']);
@@ -580,7 +630,7 @@ class AdminCustomClientifyEndPoint
 				$items[] = array(
 					'id' => (int) $order_product['product_attribute_id'],
 					'name' => $product_name,
-					'description' => isset($product->description[1]) ? trim(strip_tags($product->description[1])) : '',
+					'description' => $this->product_description($product),
 					'category' => $join_cat,
 					'sku' => $order_product['product_reference'],
 					'image_url' => $image_url,
@@ -604,7 +654,7 @@ class AdminCustomClientifyEndPoint
 				$items[] = array(
 					'id' => (int) $order_product['id_product'],
 					'name' => $product_name,
-					'description' => $product->description[1],
+					'description' => $this->product_description($product),
 					'category' => $join_cat,
 					'sku' => $product->reference,
 					'image_url' => $image_url,
@@ -626,7 +676,7 @@ class AdminCustomClientifyEndPoint
 			'order_id' => $order->id,
 			'ecommerce' => 'prestashop',
 			'shop_name' => $this->getShopName($this->data_config['id_shop']),
-			'order_url' => $shop_url . "/index.php?controller=pdf-invoice?id_order=$order_id",
+			'order_url' => rtrim($shop_url, '/') . "/index.php?controller=pdf-invoice&id_order=$order_id",
 			'store_url' => $url_base,
 			'currency' => $currency['iso_code'],
 			'products' => $items,
@@ -634,6 +684,7 @@ class AdminCustomClientifyEndPoint
 			'price' => number_format($order->total_paid_tax_incl, 2, '.', ''),
 			'coupon' => $order->gift,
 		);
+		$lang = Language::getIsoById((int) $order->id_lang);
 		if (!empty($lang)) {
 			$data['custom_field'] = array(
 				'field' => 'ecommerce_language',
@@ -672,9 +723,9 @@ class AdminCustomClientifyEndPoint
 		LEFT JOIN 
 			" . _DB_PREFIX_ . "attribute_group ag ON ag.id_attribute_group = a.id_attribute_group
 		LEFT JOIN 
-			" . _DB_PREFIX_ . "attribute_lang al ON (a.id_attribute = al.id_attribute AND al.id_lang = 1)
+			" . _DB_PREFIX_ . "attribute_lang al ON (a.id_attribute = al.id_attribute AND al.id_lang = " . $this->lang_id() . ")
 		LEFT JOIN 
-			" . _DB_PREFIX_ . "attribute_group_lang agl ON (ag.id_attribute_group = agl.id_attribute_group AND agl.id_lang = 1)
+			" . _DB_PREFIX_ . "attribute_group_lang agl ON (ag.id_attribute_group = agl.id_attribute_group AND agl.id_lang = " . $this->lang_id() . ")
 		LEFT JOIN 
 			" . _DB_PREFIX_ . "product_attribute_shop pas ON pas.id_product_attribute = pac.id_product_attribute
 		LEFT JOIN 
@@ -691,7 +742,7 @@ class AdminCustomClientifyEndPoint
 					FROM " . _DB_PREFIX_ . "category_product cp
 					INNER JOIN " . _DB_PREFIX_ . "category c ON cp.id_category = c.id_category
 					INNER JOIN " . _DB_PREFIX_ . "category_lang cl ON c.id_category = cl.id_category
-					WHERE cp.id_product = " . $product_id . " AND cl.id_lang = 1"
+					WHERE cp.id_product = " . $product_id . " AND cl.id_lang = " . $this->lang_id()
 		);
 
 		if (is_array($terms)) {
@@ -751,7 +802,7 @@ class AdminCustomClientifyEndPoint
 					$combination['id_product_attribute']
 				);
 				$product_name = ProductCore::getProductName($product_id, $combination['id_product_attribute']);
-				$combination_images = ProductCore::getCombinationImageById((int) $combination['id_product_attribute'], 1);
+				$combination_images = ProductCore::getCombinationImageById((int) $combination['id_product_attribute'], $this->lang_id());
 
 				if (!empty($combination_images)) {
 					$image = new Image($combination_images['id_image']);
@@ -769,7 +820,7 @@ class AdminCustomClientifyEndPoint
 					'store_url' => $url_base,
 					'id' => (int) $combination['id_product_attribute'],
 					'name' => $product_name,
-					'description' => isset($product->description[1]) ? trim(strip_tags($product->description[1])) : '',
+					'description' => $this->product_description($product),
 					'category' => $join_cat,
 					'sku' => $combination['reference'],
 					'image_url' => $image_url,
@@ -798,7 +849,7 @@ class AdminCustomClientifyEndPoint
 				'store_url' => $url_base,
 				'id' => $product->id,
 				'name' => $product_name,
-				'description' => isset($product->description[1]) ? trim(strip_tags($product->description[1])) : '',
+				'description' => $this->product_description($product),
 				'category' => $join_cat,
 				'sku' => $product->reference,
 				'image_url' => $image_url,
@@ -818,7 +869,7 @@ class AdminCustomClientifyEndPoint
 	public function get_abandoned_carts($params)
 	{
 
-		$page = (int) (!isset($params["page"])) ? 1 : $params["page"];
+		$page = isset($params["page"]) ? max(1, (int) $params["page"]) : 1;
 		$per_page = (int) $params["per_page"];
 		$date_null = self::build_datetime_range_filter($params, 't1.date_add');
 		$limit = $per_page != 0 ? 'LIMIT ' . (($page - 1) * $per_page) . ' , ' . $per_page . '' : '';
@@ -893,7 +944,7 @@ class AdminCustomClientifyEndPoint
 					FROM " . _DB_PREFIX_ . "category_product cp
 					INNER JOIN " . _DB_PREFIX_ . "category c ON cp.id_category = c.id_category
 					INNER JOIN " . _DB_PREFIX_ . "category_lang cl ON c.id_category = cl.id_category
-					WHERE cp.id_product = " . $order_product['id_product'] . " AND cl.id_lang = 1"
+					WHERE cp.id_product = " . $order_product['id_product'] . " AND cl.id_lang = " . $this->lang_id()
 				);
 
 				if (is_array($terms)) {
@@ -954,7 +1005,7 @@ class AdminCustomClientifyEndPoint
 						$order_product['id_product_attribute']
 					);
 					$product_name = ProductCore::getProductName($order_product['id_product'], $order_product['id_product_attribute']);
-					$combination_images = ProductCore::getCombinationImageById((int) $order_product['id_product_attribute'], 1);
+					$combination_images = ProductCore::getCombinationImageById((int) $order_product['id_product_attribute'], $this->lang_id());
 
 					if (!empty($combination_images)) {
 						$image = new Image($combination_images['id_image']);
@@ -970,7 +1021,7 @@ class AdminCustomClientifyEndPoint
 					$items[] = array(
 						'id' => (int) $order_product['id_product_attribute'],
 						'name' => $product_name,
-						'description' => isset($product->description[1]) ? trim(strip_tags($product->description[1])) : '',
+						'description' => $this->product_description($product),
 						'category' => $join_cat,
 						'sku' => $order_product['reference'],
 						'image_url' => $image_url,
@@ -992,7 +1043,7 @@ class AdminCustomClientifyEndPoint
 					$items[] = array(
 						'id' => (int) $order_product['id_product'],
 						'name' => $product_name,
-						'description' => $product->description[1],
+						'description' => $this->product_description($product),
 						'category' => $join_cat,
 						'sku' => $product->reference,
 						'image_url' => $image_url,
@@ -1015,7 +1066,7 @@ class AdminCustomClientifyEndPoint
 				'order_id' => $cart[0]['id_cart'],
 				'ecommerce' => 'prestashop',
 				'shop_name' => $this->getShopName($this->data_config['id_shop']),
-				'order_url' => $url_shop . '/index.php?controller=order&recover_cart=' . $cart[0]['id_cart'],
+				'order_url' => rtrim($url_shop, '/') . '/index.php?controller=order&recover_cart=' . $cart[0]['id_cart'],
 				'store_url' => $url_base,
 				'currency' => $currency['iso_code'],
 				'products' => $items,
@@ -1040,30 +1091,19 @@ class AdminCustomClientifyEndPoint
 	{
 
 		$all = array();
-		$page = (int) (!isset($params["page"])) ? 1 : $params["page"];
+		$page = isset($params["page"]) ? max(1, (int) $params["page"]) : 1;
 		$per_page = (int) $params["per_page"];
 		$date_null = self::build_date_filter($params);
 		$limit = $per_page != 0 ? 'LIMIT ' . (($page - 1) * $per_page) . ' , ' . $per_page . '' : '';
 
 		// Consulta SQL unificada para obtener los IDs de orden
-		$query = "SELECT DISTINCT o.id_order 
+		$base_query = "SELECT DISTINCT o.id_order 
 				  FROM " . _DB_PREFIX_ . "orders o
 				  LEFT JOIN " . _DB_PREFIX_ . "customer g ON (o.id_customer = g.id_customer) 
-				  WHERE DATE(o.date_add) " . $date_null . " AND o.id_shop = " . $this->data_config['id_shop'] . "
-				  ORDER BY o.id_order DESC " . $limit;
+				  WHERE DATE(o.date_add) " . $date_null . " AND o.id_shop = " . (int) $this->data_config['id_shop'];
 
-		// Ejecutar la consulta SQL
-		$order_ids = Db::getInstance()->executeS($query);
-
-		// Obtener el número total de resultados sin usar count()
-		$total = count($order_ids);
-
-		// Calcular el número total de páginas
-		if ($per_page > 0) {
-			$total_pages = ceil($total / $per_page);
-		} else {
-			$total_pages = 0;
-		}
+		$order_ids = Db::getInstance()->executeS($base_query . " ORDER BY o.id_order DESC " . $limit);
+		$total_pages = $this->count_total_pages($base_query, $per_page);
 
 		foreach ($order_ids as $order_id) {
 			$order = new Order($order_id['id_order']);
@@ -1086,7 +1126,7 @@ class AdminCustomClientifyEndPoint
 					FROM " . _DB_PREFIX_ . "category_product cp
 					INNER JOIN " . _DB_PREFIX_ . "category c ON cp.id_category = c.id_category
 					INNER JOIN " . _DB_PREFIX_ . "category_lang cl ON c.id_category = cl.id_category
-					WHERE cp.id_product = " . $order_product['id_product'] . " AND cl.id_lang = 1"
+					WHERE cp.id_product = " . $order_product['id_product'] . " AND cl.id_lang = " . $this->lang_id()
 				);
 
 				if (is_array($terms)) {
@@ -1157,7 +1197,7 @@ class AdminCustomClientifyEndPoint
 						$order_product['product_attribute_id']
 					);
 					$product_name = ProductCore::getProductName($order_product['id_product'], $order_product['product_attribute_id']);
-					$combination_images = ProductCore::getCombinationImageById((int) $order_product['product_attribute_id'], 1);
+					$combination_images = ProductCore::getCombinationImageById((int) $order_product['product_attribute_id'], $this->lang_id());
 
 					if (!empty($combination_images)) {
 						$image = new Image($combination_images['id_image']);
@@ -1173,7 +1213,7 @@ class AdminCustomClientifyEndPoint
 					$items[] = array(
 						'id' => (int) $order_product['product_attribute_id'],
 						'name' => $product_name,
-						'description' => isset($product->description[1]) ? trim(strip_tags($product->description[1])) : '',
+						'description' => $this->product_description($product),
 						'category' => $join_cat,
 						'sku' => $order_product['product_reference'],
 						'image_url' => $image_url,
@@ -1197,7 +1237,7 @@ class AdminCustomClientifyEndPoint
 					$items[] = array(
 						'id' => (int) $order_product['id_product'],
 						'name' => $product_name,
-						'description' => isset($product->description[1]) ? trim(strip_tags($product->description[1])) : '',
+						'description' => $this->product_description($product),
 						'category' => $join_cat,
 						'sku' => $product->reference,
 						'image_url' => $image_url,
@@ -1219,7 +1259,7 @@ class AdminCustomClientifyEndPoint
 				'order_id' => $order->id,
 				'ecommerce' => 'prestashop',
 				'shop_name' => $this->getShopName($this->data_config['id_shop']),
-				'order_url' => $url_2 . "index.php?controller=pdf-invoice?id_order=" . $order_id['id_order'],
+				'order_url' => $url_2 . "index.php?controller=pdf-invoice&id_order=" . $order_id['id_order'],
 				'store_url' => $url_base,
 				'currency' => $currency['iso_code'],
 				'products' => $items,
@@ -1228,6 +1268,7 @@ class AdminCustomClientifyEndPoint
 				// 'visitor_key' => (string)$this->getVisitorKeyByCartId($_COOKIE['vk']),
 				'coupon' => $order->gift,
 			);
+			$lang = Language::getIsoById((int) $order->id_lang);
 			if (!empty($lang)) {
 				$data['custom_field'] = array(
 					'field' => 'ecommerce_language',
@@ -1248,21 +1289,16 @@ class AdminCustomClientifyEndPoint
 	public function get_all_contacts($params)
 	{
 		$all = array();
-		$page = (int) (!isset($params["page"])) ? 1 : $params["page"];
+		$page = isset($params["page"]) ? max(1, (int) $params["page"]) : 1;
 		$per_page = (int) $params["per_page"];
 		$date_null = self::build_date_filter($params);
 		$limit = $per_page != 0 ? 'LIMIT ' . (($page - 1) * $per_page) . ' , ' . $per_page . '' : '';
 
 
-		$contacts = Db::getInstance()->executes(
-			"SELECT DISTINCT o.id_customer FROM " . _DB_PREFIX_ . "customer o LEFT JOIN " . _DB_PREFIX_ . "address g ON ( o.id_customer = g.id_customer ) WHERE DATE(o.date_add)  " . $date_null . " and o.id_shop =" . $this->data_config['id_shop'] . "
-			ORDER BY o.id_customer desc " . $limit
-		);
+		$base_query = "SELECT DISTINCT o.id_customer FROM " . _DB_PREFIX_ . "customer o LEFT JOIN " . _DB_PREFIX_ . "address g ON ( o.id_customer = g.id_customer ) WHERE DATE(o.date_add)  " . $date_null . " and o.id_shop =" . (int) $this->data_config['id_shop'];
 
-		if (isset($per_page)) {
-			$to_per = $per_page > 0 ? count($contacts) / $per_page : 0;
-			$total_pages = is_float($to_per) ? intval($to_per + 1) : $to_per;
-		}
+		$contacts = Db::getInstance()->executeS($base_query . " ORDER BY o.id_customer desc " . $limit);
+		$total_pages = $this->count_total_pages($base_query, $per_page);
 
 		foreach ($contacts as $contact) {
 			$user_id = $contact['id_customer'];
@@ -1352,20 +1388,15 @@ class AdminCustomClientifyEndPoint
 		$all = array();
 		$url_base = $this->GetApiUrl($this->data_config['id_shop']);
 		$new_categories = [];
-		$page = (int) (!isset($params["page"])) ? 1 : $params["page"];
+		$page = isset($params["page"]) ? max(1, (int) $params["page"]) : 1;
 		$per_page = (int) $params["per_page"];
 		$date_null = self::build_date_filter($params);
 		$limit = $per_page != 0 ? 'LIMIT ' . (($page - 1) * $per_page) . ' , ' . $per_page . '' : '';
 
-		$products = Db::getInstance()->executes(
-			"SELECT o.id_product FROM " . _DB_PREFIX_ . "product o WHERE DATE(o.date_add)  " . $date_null . " and o.id_shop_default = " . $this->data_config['id_shop'] . "
-			ORDER BY o.id_product desc " . $limit
-		);
+		$base_query = "SELECT o.id_product FROM " . _DB_PREFIX_ . "product o WHERE DATE(o.date_add)  " . $date_null . " and o.id_shop_default = " . (int) $this->data_config['id_shop'];
 
-		if (isset($per_page)) {
-			$to_per = $per_page > 0 ? count($products) / $per_page : 0;
-			$total_pages = is_float($to_per) ? intval($to_per + 1) : $to_per;
-		}
+		$products = Db::getInstance()->executeS($base_query . " ORDER BY o.id_product desc " . $limit);
+		$total_pages = $this->count_total_pages($base_query, $per_page);
 
 		foreach ($products as $id_product) {
 
@@ -1389,9 +1420,9 @@ class AdminCustomClientifyEndPoint
 			LEFT JOIN 
 				" . _DB_PREFIX_ . "attribute_group ag ON ag.id_attribute_group = a.id_attribute_group
 			LEFT JOIN 
-				" . _DB_PREFIX_ . "attribute_lang al ON (a.id_attribute = al.id_attribute AND al.id_lang = 1)
+				" . _DB_PREFIX_ . "attribute_lang al ON (a.id_attribute = al.id_attribute AND al.id_lang = " . $this->lang_id() . ")
 			LEFT JOIN 
-				" . _DB_PREFIX_ . "attribute_group_lang agl ON (ag.id_attribute_group = agl.id_attribute_group AND agl.id_lang = 1)
+				" . _DB_PREFIX_ . "attribute_group_lang agl ON (ag.id_attribute_group = agl.id_attribute_group AND agl.id_lang = " . $this->lang_id() . ")
 			LEFT JOIN 
 				" . _DB_PREFIX_ . "product_attribute_shop pas ON pas.id_product_attribute = pac.id_product_attribute
 			LEFT JOIN 
@@ -1411,7 +1442,7 @@ class AdminCustomClientifyEndPoint
 					FROM " . _DB_PREFIX_ . "category_product cp
 					INNER JOIN " . _DB_PREFIX_ . "category c ON cp.id_category = c.id_category
 					INNER JOIN " . _DB_PREFIX_ . "category_lang cl ON c.id_category = cl.id_category
-					WHERE cp.id_product = " . $id_product['id_product'] . " AND cl.id_lang = 1"
+					WHERE cp.id_product = " . $id_product['id_product'] . " AND cl.id_lang = " . $this->lang_id()
 			);
 
 			if (is_array($terms)) {
@@ -1484,7 +1515,7 @@ class AdminCustomClientifyEndPoint
 						$combination['id_product_attribute']
 					);
 					$product_name = ProductCore::getProductName($id_product['id_product'], $combination['id_product_attribute']);
-					$combination_images = ProductCore::getCombinationImageById((int) $combination['id_product_attribute'], 1);
+					$combination_images = ProductCore::getCombinationImageById((int) $combination['id_product_attribute'], $this->lang_id());
 
 					if (!empty($combination_images)) {
 						$image = new Image($combination_images['id_image']);
@@ -1503,7 +1534,7 @@ class AdminCustomClientifyEndPoint
 						'store_url' => $url_base,
 						'id' => (int) $combination['id_product_attribute'],
 						'name' => $product_name,
-						'description' => isset($product->description[1]) ? trim(strip_tags($product->description[1])) : '',
+						'description' => $this->product_description($product),
 						'category' => $join_cat,
 						'sku' => $combination['reference'],
 						'image_url' => $image_url,
@@ -1531,7 +1562,7 @@ class AdminCustomClientifyEndPoint
 					'store_url' => $url_base,
 					'id' => $product->id,
 					'name' => $product_name,
-					'description' => isset($product->description[1]) ? trim(strip_tags($product->description[1])) : '',
+					'description' => $this->product_description($product),
 					'category' => $join_cat,
 					'sku' => $product->reference,
 					'image_url' => $image_url,
@@ -1567,6 +1598,55 @@ class AdminCustomClientifyEndPoint
 			return json_encode($data);
 		}
 	}
+	/**
+	 * Total de paginas para la cabecera Link (Clientify la lee como un entero y pagina
+	 * hasta ese valor). Se cuenta sobre la consulta completa: contar solo los resultados
+	 * de la pagina actual devolvia siempre 1 y Clientify dejaba de pedir el resto.
+	 *
+	 * @param string $base_query Consulta de ids sin ORDER BY ni LIMIT.
+	 */
+	private function count_total_pages($base_query, $per_page)
+	{
+		if ($per_page <= 0) {
+			return '';
+		}
+		$total = (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM (' . $base_query . ') clientify_count');
+		return (int) ceil($total / $per_page);
+	}
+
+	/**
+	 * Idioma por defecto de la tienda. Antes se usaba id_lang = 1 fijo, que en tiendas cuyo
+	 * idioma principal no es el primero instalado devolvia categorias, atributos y
+	 * descripciones en otro idioma (o vacios).
+	 */
+	private function lang_id()
+	{
+		static $id_lang = null;
+		if ($id_lang === null) {
+			$id_lang = (int) Configuration::get('PS_LANG_DEFAULT');
+			if ($id_lang <= 0) {
+				$id_lang = 1;
+			}
+		}
+		return $id_lang;
+	}
+
+	private function product_description($product)
+	{
+		$id_lang = $this->lang_id();
+		$description = '';
+		if (is_array($product->description)) {
+			if (!empty($product->description[$id_lang])) {
+				$description = $product->description[$id_lang];
+			} elseif (!empty($product->description)) {
+				$description = reset($product->description);
+			}
+		} elseif (is_string($product->description)) {
+			$description = $product->description;
+		}
+		return trim(strip_tags((string) $description));
+	}
+
 	public function categoryExists($categories, $id_parent)
 	{
 		foreach ($categories as $cat) {
@@ -1581,7 +1661,7 @@ class AdminCustomClientifyEndPoint
 	public function sync_abandoned_carts($params)
 	{
 
-		$page = (int) (!isset($params["page"])) ? 1 : $params["page"];
+		$page = isset($params["page"]) ? max(1, (int) $params["page"]) : 1;
 		$per_page = (int) $params["per_page"];
 		$date_null = self::build_datetime_range_filter($params, 't1.date_add');
 		$limit = $per_page != 0 ? 'LIMIT ' . (($page - 1) * $per_page) . ' , ' . $per_page . '' : '';
@@ -1592,20 +1672,14 @@ class AdminCustomClientifyEndPoint
 		$url_shop = $shop->getBaseURL();
 		$all = array();
 
-		$sq_data = 'SELECT DISTINCT t1.id_cart
+		$base_query = 'SELECT DISTINCT t1.id_cart
 		FROM ' . _DB_PREFIX_ . 'cart t1
 		LEFT JOIN ' . _DB_PREFIX_ . 'orders t2 ON (t2.id_cart = t1.id_cart)
 		LEFT JOIN ' . _DB_PREFIX_ . 'cart_product t3 ON (t3.id_cart = t1.id_cart)
-		WHERE t2.id_cart IS null and t3.id_cart=t1.id_cart ' . $date_null . ' and t1.id_shop = ' . $this->data_config['id_shop'] . ' ' . $limit;
+		WHERE t2.id_cart IS null and t3.id_cart=t1.id_cart ' . $date_null . ' and t1.id_shop = ' . (int) $this->data_config['id_shop'];
 
-		$cart_ids = Db::getInstance()->executes(
-			$sq_data
-		);
-
-		if (isset($per_page)) {
-			$to_per = $per_page > 0 ? count($cart_ids) / $per_page : 0;
-			$total_pages = is_float($to_per) ? intval($to_per + 1) : $to_per;
-		}
+		$cart_ids = Db::getInstance()->executeS($base_query . ' ORDER BY t1.id_cart DESC ' . $limit);
+		$total_pages = $this->count_total_pages($base_query, $per_page);
 		foreach ($cart_ids as $cart_id) {
 			$sql = 'SELECT t1.*, t3.*
 			FROM ' . _DB_PREFIX_ . 'cart t1
@@ -1645,7 +1719,7 @@ class AdminCustomClientifyEndPoint
 					FROM " . _DB_PREFIX_ . "category_product cp
 					INNER JOIN " . _DB_PREFIX_ . "category c ON cp.id_category = c.id_category
 					INNER JOIN " . _DB_PREFIX_ . "category_lang cl ON c.id_category = cl.id_category
-					WHERE cp.id_product = " . $order_product['id_product'] . " AND cl.id_lang = 1"
+					WHERE cp.id_product = " . $order_product['id_product'] . " AND cl.id_lang = " . $this->lang_id()
 				);
 
 				if (is_array($terms)) {
@@ -1707,7 +1781,7 @@ class AdminCustomClientifyEndPoint
 						$order_product['id_product_attribute']
 					);
 					$product_name = ProductCore::getProductName($order_product['id_product'], $order_product['id_product_attribute']);
-					$combination_images = ProductCore::getCombinationImageById((int) $order_product['id_product_attribute'], 1);
+					$combination_images = ProductCore::getCombinationImageById((int) $order_product['id_product_attribute'], $this->lang_id());
 
 					if (!empty($combination_images)) {
 						$image = new Image($combination_images['id_image']);
@@ -1723,7 +1797,7 @@ class AdminCustomClientifyEndPoint
 					$items[] = array(
 						'id' => (int) $order_product['id_product_attribute'],
 						'name' => $product_name,
-						'description' => isset($product->description[1]) ? trim(strip_tags($product->description[1])) : '',
+						'description' => $this->product_description($product),
 						'category' => $join_cat,
 						'sku' => $order_product['reference'],
 						'image_url' => $image_url,
@@ -1747,7 +1821,7 @@ class AdminCustomClientifyEndPoint
 					$items[] = array(
 						'id' => (int) $order_product['id_product'],
 						'name' => $product_name,
-						'description' => $product->description[1],
+						'description' => $this->product_description($product),
 						'category' => $join_cat,
 						'sku' => $product->reference,
 						'image_url' => $image_url,
@@ -1769,7 +1843,7 @@ class AdminCustomClientifyEndPoint
 					'order_id' => $cart[0]['id_cart'],
 					'ecommerce' => 'prestashop',
 					'shop_name' => $this->getShopName($this->data_config['id_shop']),
-					'order_url' => $url_shop . '/index.php?controller=order&recover_cart=' . $cart[0]['id_cart'],
+					'order_url' => rtrim($url_shop, '/') . '/index.php?controller=order&recover_cart=' . $cart[0]['id_cart'],
 					'store_url' => $url_base,
 					'currency' => $currency['iso_code'],
 					'products' => $items,
@@ -1802,7 +1876,7 @@ class AdminCustomClientifyEndPoint
 
 		$all = array();
 		$result_sync = array();
-		$page = (int) (!isset($params["page"])) ? 1 : $params["page"];
+		$page = isset($params["page"]) ? max(1, (int) $params["page"]) : 1;
 		$per_page = (int) $params["per_page"];
 		$date_null = self::build_date_filter($params);
 		$limit = $per_page != 0 ? 'LIMIT ' . (($page - 1) * $per_page) . ' , ' . $per_page . '' : '';
@@ -1847,7 +1921,7 @@ class AdminCustomClientifyEndPoint
 					FROM " . _DB_PREFIX_ . "category_product cp
 					INNER JOIN " . _DB_PREFIX_ . "category c ON cp.id_category = c.id_category
 					INNER JOIN " . _DB_PREFIX_ . "category_lang cl ON c.id_category = cl.id_category
-					WHERE cp.id_product = " . $order_product['id_product'] . " AND cl.id_lang = 1"
+					WHERE cp.id_product = " . $order_product['id_product'] . " AND cl.id_lang = " . $this->lang_id()
 				);
 				if (is_array($terms)) {
 					foreach ($terms as $term) {
@@ -1917,7 +1991,7 @@ class AdminCustomClientifyEndPoint
 						$order_product['product_attribute_id']
 					);
 					$product_name = ProductCore::getProductName($order_product['id_product'], $order_product['product_attribute_id']);
-					$combination_images = ProductCore::getCombinationImageById((int) $order_product['product_attribute_id'], 1);
+					$combination_images = ProductCore::getCombinationImageById((int) $order_product['product_attribute_id'], $this->lang_id());
 
 					if (!empty($combination_images)) {
 						$image = new Image($combination_images['id_image']);
@@ -1933,7 +2007,7 @@ class AdminCustomClientifyEndPoint
 					$items[] = array(
 						'id' => (int) $order_product['product_attribute_id'],
 						'name' => $product_name,
-						'description' => isset($product->description[1]) ? trim(strip_tags($product->description[1])) : '',
+						'description' => $this->product_description($product),
 						'category' => $join_cat,
 						'sku' => $order_product['product_reference'],
 						'image_url' => $image_url,
@@ -1957,7 +2031,7 @@ class AdminCustomClientifyEndPoint
 					$items[] = array(
 						'id' => (int) $order_product['id_product'],
 						'name' => $product_name,
-						'description' => $product->description[1],
+						'description' => $this->product_description($product),
 						'category' => $join_cat,
 						'sku' => $product->reference,
 						'image_url' => $image_url,
@@ -1980,7 +2054,7 @@ class AdminCustomClientifyEndPoint
 				'order_id' => $order->id,
 				'ecommerce' => 'prestashop',
 				'shop_name' => $this->getShopName($this->data_config['id_shop']),
-				'order_url' => $url_2 . "index.php?controller=pdf-invoice?id_order=" . $order_id['id_order'],
+				'order_url' => $url_2 . "index.php?controller=pdf-invoice&id_order=" . $order_id['id_order'],
 				'store_url' => $url_base,
 				'currency' => $currency['iso_code'],
 				'products' => $items,
@@ -1989,6 +2063,7 @@ class AdminCustomClientifyEndPoint
 				// 'visitor_key' => (string)$this->getVisitorKeyByCartId($_COOKIE['vk']),
 				'coupon' => $order->gift,
 			);
+			$lang = Language::getIsoById((int) $order->id_lang);
 			if (!empty($lang)) {
 				$data['custom_field'] = array(
 					'field' => 'ecommerce_language',
@@ -2011,7 +2086,7 @@ class AdminCustomClientifyEndPoint
 	{
 		$all = array();
 		$result_sync = array();
-		$page = (int) (!isset($params["page"])) ? 1 : $params["page"];
+		$page = isset($params["page"]) ? max(1, (int) $params["page"]) : 1;
 		$per_page = (int) $params["per_page"];
 		$date_null = self::build_date_filter($params);
 		$limit = $per_page != 0 ? 'LIMIT ' . (($page - 1) * $per_page) . ' , ' . $per_page . '' : '';

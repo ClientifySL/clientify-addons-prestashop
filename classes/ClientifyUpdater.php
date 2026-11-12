@@ -21,7 +21,9 @@ class ClientifyUpdater
         if ($cached) {
             $data = json_decode($cached, true);
             if ($data && isset($data['fetched_at']) && (time() - $data['fetched_at']) < self::CACHE_TTL) {
-                return $data;
+                // Tambien se cachea el fallo: si GitHub no es accesible desde el servidor,
+                // no se vuelve a esperar el timeout en cada pagina del back office.
+                return empty($data['failed']) ? $data : null;
             }
         }
 
@@ -29,19 +31,17 @@ class ClientifyUpdater
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_USERAGENT      => 'PrestaShop-Clientify-Updater',
-            CURLOPT_TIMEOUT        => 10,
+            CURLOPT_CONNECTTIMEOUT => 3,
+            CURLOPT_TIMEOUT        => 5,
             CURLOPT_SSL_VERIFYPEER => true,
         ]);
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
 
-        if ($httpCode !== 200 || !$response) {
-            return null;
-        }
-
-        $release = json_decode($response, true);
+        $release = ($httpCode === 200 && $response) ? json_decode($response, true) : null;
         if (!isset($release['tag_name'])) {
+            Configuration::updateValue(self::CACHE_KEY, json_encode(array('failed' => true, 'fetched_at' => time())));
             return null;
         }
 
@@ -57,7 +57,7 @@ class ClientifyUpdater
             'version'    => ltrim($release['tag_name'], 'v'),
             'tag'        => $release['tag_name'],
             'zip_url'    => $zipUrl,
-            'body'       => $release['body'] ?? '',
+            'body'       => isset($release['body']) ? $release['body'] : '',
             'html_url'   => $release['html_url'],
             'fetched_at' => time(),
         ];

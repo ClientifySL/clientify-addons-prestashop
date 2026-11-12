@@ -28,35 +28,6 @@
 if (!defined('_PS_VERSION_')) {
     exit;
 }
-$tabla = false;
-$tables = Db::getInstance()->executeS("SHOW TABLES");
-foreach ($tables as $row) {
-    if (in_array(_DB_PREFIX_ . 'configuration_clientify', $row)) {
-        $tabla = true;
-        break;
-    }
-}
-if (!$tabla) {
-    $sql = "CREATE TABLE " . _DB_PREFIX_ . "configuration_clientify (
-                `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-                `id_shop` VARCHAR(255) Default NULL,
-                `clientify_api_key` VARCHAR(255) Default NULL,
-                `clientify_script` VARCHAR(255) Default NULL,
-                `clientify_order_status` VARCHAR(255) Default NULL,
-                `clientify_cart_hour` VARCHAR(255) Default NULL,
-                `clientify_store_key` VARCHAR(255) Default NULL,
-                `clientify_module_status` VARCHAR(255) Default NULL,
-                PRIMARY KEY (`id`)
-            ) ENGINE=" . _MYSQL_ENGINE_ . " DEFAULT CHARSET=utf8;";
-    Db::getInstance()->execute($sql);
-    $data = array(
-        'clientify_module_status' => 0,
-        'clientify_order_status' => '2,11',
-    );
-    Db::getInstance()->insert('configuration_clientify', $data);
-}
-
-
 include_once(__DIR__ . '/controllers/admin/Api.php');
 include_once(__DIR__ . '/classes/ClientifyUpdater.php');
 
@@ -110,15 +81,111 @@ class Clientify extends Module
 
 
         return parent::install() &&
-            $this->registerHook('header') &&
-            $this->registerHook('backOfficeHeader') && $this->registerHook('actionCustomerAccountAdd') && $this->registerHook('actionOrderStatusPostUpdate') &&
-            $this->registerHook('displayfooter') && $this->installDB() && $this->installModuleTab() &&
-            $this->registerHook('actionObjectProductAddAfter') && $this->registerHook('actionObjectProductUpdateAfter') && $this->registerHook('ModuleRoutes');
+            $this->registerHook($this->getRequiredHooks()) &&
+            $this->installDB() && $this->installModuleTab() &&
+            Configuration::updateGlobalValue('CLIENTIFY_MIGRATED_VERSION', $this->version);
+    }
+
+    /**
+     * Hooks que necesita el modulo. Debe coincidir con los que comprueba
+     * AdminCustomClientifyEndPoint::get_plugin_status().
+     */
+    public function getRequiredHooks()
+    {
+        return array(
+            'header',
+            'backOfficeHeader',
+            'actionCustomerAccountAdd',
+            'actionOrderStatusPostUpdate',
+            'displayFooter',
+            'actionObjectProductAddAfter',
+            'actionObjectProductUpdateAfter',
+            'moduleRoutes',
+        );
+    }
+
+    /**
+     * Deja la instalacion al dia con la version de los archivos. Es idempotente.
+     *
+     * Se ejecuta desde upgrade/upgrade-1.0.4.php (actualizacion subiendo el ZIP) y tambien
+     * desde hookBackOfficeHeader cuando la version migrada no coincide: el auto-updater
+     * (ClientifyUpdater) copia los archivos y escribe la version en ps_module directamente,
+     * asi que PrestaShop nunca ejecuta los scripts de upgrade en ese camino. Sin esto, una
+     * tienda que venia de 0.1.1 se quedaba sin el hook actionCustomerAccountAdd y dejaba
+     * de enviar los clientes nuevos.
+     */
+    public function runMigrations()
+    {
+        foreach ($this->getRequiredHooks() as $hook) {
+            if (!$this->isRegisteredInHook($hook)) {
+                $this->registerHook($hook);
+            }
+        }
+
+        // Hooks de versiones anteriores (0.1.x) que ya no tienen metodo en el modulo.
+        foreach (array('actionObjectCustomerAddAfter', 'actionCartUpdateQuantityBefore') as $hook) {
+            if ($this->isRegisteredInHook($hook)) {
+                $this->unregisterHook($hook);
+            }
+        }
+
+        // No usar installDB() aqui: si la tabla existe pone clientify_module_status = 0 y
+        // desconectaria la tienda.
+        $this->ensureTables();
+
+        // Archivos de versiones anteriores que la subida del ZIP o el auto-updater no borran.
+        foreach (array('ajax_search.php', 'controllers/front/clientify.php', 'upgrade/upgrade-1.1.0.php') as $file) {
+            if (file_exists(__DIR__ . '/' . $file)) {
+                @unlink(__DIR__ . '/' . $file);
+            }
+        }
+
+        Configuration::updateGlobalValue('CLIENTIFY_MIGRATED_VERSION', $this->version);
+        return true;
+    }
+
+    /**
+     * Crea las tablas del modulo si faltan, sin tocar la configuracion existente.
+     */
+    private function ensureTables()
+    {
+        $db = Db::getInstance();
+        $db->execute(
+            "CREATE TABLE IF NOT EXISTS `" . _DB_PREFIX_ . "configuration_clientify` (
+                `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+                `id_shop` VARCHAR(255) Default NULL,
+                `clientify_api_key` VARCHAR(255) Default NULL,
+                `clientify_script` VARCHAR(255) Default NULL,
+                `clientify_order_status` VARCHAR(255) Default NULL,
+                `clientify_cart_hour` VARCHAR(255) Default NULL,
+                `clientify_store_key` VARCHAR(255) Default NULL,
+                `clientify_module_status` VARCHAR(255) Default NULL,
+                PRIMARY KEY (`id`)
+            ) ENGINE=" . _MYSQL_ENGINE_ . " DEFAULT CHARSET=utf8;"
+        );
+        if (!$db->getValue("SELECT id FROM `" . _DB_PREFIX_ . "configuration_clientify`")) {
+            $db->insert('configuration_clientify', array(
+                'clientify_module_status' => 0,
+                'id_shop' => (int) $this->context->shop->id,
+                'clientify_order_status' => '2,11',
+            ));
+        }
+        $db->execute(
+            'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'clientify_logs` (
+                `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+                `type` VARCHAR(20) NOT NULL DEFAULT \'info\',
+                `message` TEXT NOT NULL,
+                `created_at` DATETIME NOT NULL,
+                PRIMARY KEY (`id`),
+                KEY `idx_created_at` (`created_at`)
+            ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8;'
+        );
     }
 
     public function uninstall()
     {
         Configuration::deleteByName('CLIENTIFY_LIVE_MODE');
+        Configuration::deleteByName('CLIENTIFY_MIGRATED_VERSION');
 
         $sql_clean = "DROP TABLE IF EXISTS " . _DB_PREFIX_ . "configuration_clientify";
         Db::getInstance()->execute($sql_clean);
@@ -282,6 +349,14 @@ class Clientify extends Module
      */
     public function hookBackOfficeHeader()
     {
+        if (Configuration::getGlobalValue('CLIENTIFY_MIGRATED_VERSION') !== $this->version) {
+            try {
+                $this->runMigrations();
+            } catch (Exception $e) {
+                PrestaShopLogger::addLog('Clientify - error en migracion a ' . $this->version . ': ' . $e->getMessage(), 3, null, 'Module', (int) $this->id);
+            }
+        }
+
         if (Tools::getValue('module_name') == $this->name || Tools::getValue('controller') == 'AdminClientify') {
             $this->context->controller->addJS($this->_path . 'views/js/back.js');
             $this->context->controller->addCSS($this->_path . 'views/css/back.css');
@@ -510,35 +585,63 @@ class Clientify extends Module
     }
 
 
+    /**
+     * Los hooks se ejecutan dentro del registro, el checkout o el guardado de producto:
+     * un fallo de Clientify nunca debe romper esa peticion. Se usa timeout corto (modo
+     * realtime de ClientifyApi) y cualquier excepcion se registra en el log del modulo.
+     */
+    private function runHookSafely($hook_name, $callback)
+    {
+        ClientifyApi::setRealtime(true);
+        try {
+            call_user_func($callback);
+        } catch (Exception $e) {
+            $this->logHookError($hook_name, $e);
+        } catch (Throwable $e) {
+            $this->logHookError($hook_name, $e);
+        }
+        ClientifyApi::setRealtime(false);
+    }
+
+    private function logHookError($hook_name, $e)
+    {
+        if (class_exists('AdminClientifyController')) {
+            AdminClientifyController::addLog('error', 'Error en hook ' . $hook_name . ': ' . $e->getMessage());
+        } else {
+            PrestaShopLogger::addLog('Clientify - error en hook ' . $hook_name . ': ' . $e->getMessage(), 3, null, 'Module', (int) $this->id);
+        }
+    }
+
+    private function isConnectedForShop($data_config, $id_shop)
+    {
+        if (empty($data_config) || $data_config['clientify_module_status'] != 1) {
+            return false;
+        }
+        return !Shop::isFeatureActive() || (int) $id_shop == (int) $data_config['id_shop'];
+    }
+
     public function hookActionCustomerAccountAdd($params)
     {
         if (!isset($params['newCustomer']) || empty($params['newCustomer']->id)) {
             return;
         }
 
-        include_once(__DIR__ . '/controllers/admin/controller_clientify_plugin_core.php');
-        $hook_customer = new AdminCustomClientifyEndPoint();
+        $this->runHookSafely('actionCustomerAccountAdd', function () use ($params) {
+            include_once(__DIR__ . '/controllers/admin/controller_clientify_plugin_core.php');
+            $hook_customer = new AdminCustomClientifyEndPoint();
 
-        $customer_id = (int) $params['newCustomer']->id;
-        $id_shop = Context::getContext()->shop->id;
+            if (!$this->isConnectedForShop($hook_customer->data_config, Context::getContext()->shop->id)) {
+                return;
+            }
 
-        if (Shop::isFeatureActive() == true && $id_shop == $hook_customer->data_config['id_shop'] && $hook_customer->data_config['clientify_module_status'] == 1) {
-            $api = new ClientifyApi();
-            $new_custumer = $hook_customer->get_contact($customer_id);
+            $new_custumer = $hook_customer->get_contact((int) $params['newCustomer']->id);
             if ($new_custumer) {
                 $new_custumer['status'] = 'customer';
                 $new_custumer['store_url'] = $hook_customer->GetApiUrl($hook_customer->data_config['id_shop']);
+                $api = new ClientifyApi();
                 $api->Post_Contacts_Clientify($new_custumer);
             }
-        } elseif (Shop::isFeatureActive() == false && $hook_customer->data_config['clientify_module_status'] == 1) {
-            $api = new ClientifyApi();
-            $new_custumer = $hook_customer->get_contact($customer_id);
-            if ($new_custumer) {
-                $new_custumer['status'] = 'customer';
-                $new_custumer['store_url'] = $hook_customer->GetApiUrl($hook_customer->data_config['id_shop']);
-                $api->Post_Contacts_Clientify($new_custumer);
-            }
-        }
+        });
     }
 
     public function hookActionOrderStatusPostUpdate($params)
@@ -547,46 +650,42 @@ class Clientify extends Module
             return;
         }
 
-        include_once(__DIR__ . '/controllers/admin/controller_clientify_plugin_core.php');
-        $hook_customer = new AdminCustomClientifyEndPoint();
+        $this->runHookSafely('actionOrderStatusPostUpdate', function () use ($params) {
+            include_once(__DIR__ . '/controllers/admin/controller_clientify_plugin_core.php');
+            $hook_customer = new AdminCustomClientifyEndPoint();
 
-        $id_order = (int) $params['id_order'];
-        $order = new Order($id_order);
+            $id_order = (int) $params['id_order'];
+            $order = new Order($id_order);
+            if (!Validate::isLoadedObject($order)) {
+                return;
+            }
 
-        if (!Validate::isLoadedObject($order)) {
-            return;
-        }
-
-        if (Shop::isFeatureActive() == true && $order->id_shop == $hook_customer->data_config['id_shop'] && $hook_customer->data_config['clientify_module_status'] == 1) {
-            $hook_customer->get_orders($id_order);
-        } elseif (Shop::isFeatureActive() == false && $hook_customer->data_config['clientify_module_status'] == 1) {
-            $hook_customer->get_orders($id_order);
-        }
+            if ($this->isConnectedForShop($hook_customer->data_config, $order->id_shop)) {
+                $hook_customer->get_orders($id_order);
+            }
+        });
     }
 
     public function hookDisplayFooter($params)
     {
-        include_once(__DIR__ . '/controllers/admin/controller_clientify_plugin_core.php');
-        $hook_customer = new AdminCustomClientifyEndPoint();
-        $html = "";
-        if ($hook_customer->data_config['clientify_script'] != '' && $hook_customer->data_config['clientify_module_status'] == 1) {
-            $bottom_script = $hook_customer->data_config['clientify_script'];
-            $html = '<script src=' . $bottom_script . '></script>';
+        $html = '';
+        try {
+            include_once(__DIR__ . '/controllers/admin/controller_clientify_plugin_core.php');
+            $hook_customer = new AdminCustomClientifyEndPoint();
+            if (!empty($hook_customer->data_config['clientify_script']) && $hook_customer->data_config['clientify_module_status'] == 1) {
+                $html = '<script src="' . htmlspecialchars($hook_customer->data_config['clientify_script'], ENT_QUOTES, 'UTF-8') . '"></script>';
+            }
+        } catch (Exception $e) {
+            $this->logHookError('displayFooter', $e);
         }
-
 
         return $html;
     }
+
     public function hookActionObjectProductAddAfter($params)
     {
-        if (!isset($params['object']) || empty($params['object']->id)) {
-            return true;
-        }
-
-        // if (shop::isFeatureActive() == true && $params['object']->id_shop_default == Configuration::get('CLIENTIFY_id_shop')){
-        //     $hook_customer = new AdminCustomClientifyEndPoint();
-        //     $hook_customer->get_product((int)($params['object']->id));
-        // }
+        // El alta de producto tambien dispara actionObjectProductUpdateAfter al guardar,
+        // que es quien envia el producto a Clientify.
         return true;
     }
 
@@ -596,12 +695,13 @@ class Clientify extends Module
             return true;
         }
 
-        include_once(__DIR__ . '/controllers/admin/controller_clientify_plugin_core.php');
-
-        $hook_customer = new AdminCustomClientifyEndPoint();
-        if (Context::getContext()->shop->id == $hook_customer->data_config['id_shop'] && $hook_customer->data_config['clientify_module_status'] == 1) {
-            $hook_customer->get_product((int) ($params['object']->id));
-        }
+        $this->runHookSafely('actionObjectProductUpdateAfter', function () use ($params) {
+            include_once(__DIR__ . '/controllers/admin/controller_clientify_plugin_core.php');
+            $hook_customer = new AdminCustomClientifyEndPoint();
+            if ($this->isConnectedForShop($hook_customer->data_config, Context::getContext()->shop->id)) {
+                $hook_customer->get_product((int) $params['object']->id);
+            }
+        });
         return true;
     }
 }
