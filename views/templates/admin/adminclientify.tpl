@@ -6,7 +6,6 @@
 * This source file is subject to the Academic Free License (AFL 3.0)
 *}
 
-<script type="text/javascript" src="{$module_dir}views/js/back.js"></script>
 <script type="text/javascript" src="{$module_dir}views/js/select2.min.js"></script>
 
 <div class="clientify_conten">

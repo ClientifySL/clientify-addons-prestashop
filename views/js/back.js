@@ -25,7 +25,6 @@
 * Don't forget to prefix your containers with your own identifier
 * to avoid any conflicts with others containers.
 */
-const module = "clientify"
 // document.addEventListener('keyup', (event) => {
 //     if (event.ctrlKey && event.altKey  && event.key == 'c') {
 // 		 $('#other_config').show(1000)
