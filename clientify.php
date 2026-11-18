@@ -361,7 +361,7 @@ class Clientify extends Module
         }
 
         if (Tools::getValue('module_name') == $this->name || Tools::getValue('controller') == 'AdminClientify') {
-            $this->context->controller->addJS($this->_path . 'views/js/back.js');
+            // back.js se incluye desde adminclientify.tpl: aqui iria en el <head>, antes de que el admin cargue jQuery
             $this->context->controller->addCSS($this->_path . 'views/css/back.css');
         }
 
